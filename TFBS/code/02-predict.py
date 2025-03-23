@@ -9,32 +9,53 @@ import sys
 from standard_fine_tune import FineTune
 from embedding import Embedding
 from dna_dataset import DNADataset
+from data_split import DataSplit
 
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
-sys.path.insert(0, parent_dir)
+hyena_dna_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../hyena-dna"))
+sys.path.insert(0, hyena_dna_dir)
 
 from huggingface import HyenaDNAPreTrainedModel
 from standalone_hyenadna import CharacterTokenizer
 
-
-
 dataset_path = "../inputs/ata_training_shuffle_neg_stride_200.csv"
 dataset_split_path = "../inputs/ata_training_shuffle_neg_stride_200"
-pretrained_model_name = 'hyenadna-tiny-1k-seqlen'
+split_type =  'random' # 'cross_id'
+id = 'chromosomeId'
+train_ids = [1, 3, 5]
+val_ids = [2]
+test_ids = [4]
+
 checkpoint_path = '../models/checkpoints'
-model_max_length = 350
 n_classes = 2
 
 use_padding = True
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print("Using device:", device)
 
-# finetuned_model_path = None
 is_finetuned = True
-finetuned_model_path = '../models/fine_tuned_hyena_model.pth'
 use_saved_model = False
+model_dir = '../models'
+saved_finetuned_model_name ='fine_tuned_hyena_hyenadna-tiny-1k-seqlen_cross_id_epoch_3.pt'
+#  'fine_tuned_hyena_hyenadna-tiny-1k-seqlen_random_0.7_0.15_0.15_epoch_6.pt'
+pretrained_model_name = 'hyenadna-tiny-1k-seqlen'
+# 'hyenadna-tiny-1k-seqlen'
+# 'hyenadna-tiny-1k-seqlen-d256'
+# 'hyenadna-tiny-16k-seqlen-d128''
+# 'hyenadna-small-32k-seqlen'
+# 'hyenadna-medium-160k-seqlen'
+# 'hyenadna-medium-450k-seqlen'
+# 'hyenadna-large-1m-seqlen'
+
+
+model_max_length = 350
+freeze_layers = []
+# 'backbone.embeddings': Freezes the embedding layer.
+# 'backbone.layers'    : Freezes all transformer blocks.
+# 'backbone.layers.[i]': Freezes a specific transformer block.
+# 'backbone'           : Freezes the entire backbone (embeddings + all transformer layers).
+# 'head'               : Freezes the output classification head.
 model_params = {
-    'num_epochs': 50,
+    'num_epochs': 60,
     'batch_size': 32,
     'learning_rate': 1e-4,
     'weight_decay': 0.1
@@ -43,51 +64,10 @@ model_params = {
 generate_embedding = False
 embedding_dir = '../outputs/embeddings/'
 
-loss_dir = '../outputs/loss/'
+test_result_path = f'../outputs/test_results_{split_type}.csv'
+
+loss_dir = f'../outputs/loss/{split_type}'
 os.makedirs(loss_dir, exist_ok=True)
-
-freeze_layers = []
-# 'backbone.embeddings': Freezes the embedding layer.
-# 'backbone.layers'    : Freezes all transformer blocks.
-# 'backbone.layers.[i]': Freezes a specific transformer block.
-# 'backbone'           : Freezes the entire backbone (embeddings + all transformer layers).
-# 'head'               : Freezes the output classification head.
-
-
-
-def split_dataset(ds, dataset_split_path):
-    if os.path.exists(dataset_split_path):
-        ds_train = torch.load(os.path.join(dataset_split_path, 'train_dataset.pt'))
-        ds_val = torch.load(os.path.join(dataset_split_path, 'val_dataset.pt'))
-        ds_test = torch.load(os.path.join(dataset_split_path, 'test_dataset.pt'))
-
-    else:
-        # Split dataset into training and validation
-        train_val_size = int(0.8 * len(ds))
-        print(f"train_val size: {train_val_size}")
-
-        test_size = len(ds) - train_val_size
-
-        ds_train_val, ds_test = torch.utils.data.random_split(ds, [train_val_size, test_size])
-
-        train_size = int(0.8 * len(ds_train_val))
-        val_size = len(ds_train_val) - train_size
-
-        ds_train, ds_val = torch.utils.data.random_split(ds_train_val, [train_size, val_size])
-
-        # Save all datasets
-        os.makedirs(dataset_split_path, exist_ok=True)
-
-        torch.save(ds_train, os.path.join(dataset_split_path, 'train_dataset.pt'))
-        torch.save(ds_val, os.path.join(dataset_split_path, 'val_dataset.pt'))
-        torch.save(ds_test, os.path.join(dataset_split_path, 'test_dataset.pt'))
-        print(f"Datasets saved at {dataset_split_path}")
-
-    print(f"train size: {len(ds_train)}")
-    print(f"val size: {len(ds_val)}")
-    print(f"test size: {len(ds_test)}")
-
-    return ds_train, ds_val, ds_test
 
 
 # predict binding site across entire sequence
@@ -133,7 +113,7 @@ df['sequence'] = df['sequence'].str.upper()
 random_state = 1972934
 df = df.sample(frac=1, random_state=random_state).reset_index(drop=True)
 
-print(f"*** Getting pretrained model '{pretrained_model_name}'")
+print(f"Getting pretrained model '{pretrained_model_name}'...")
 # Load the pre-trained HyenaDNA model
 model = HyenaDNAPreTrainedModel.from_pretrained(
     checkpoint_path,
@@ -152,28 +132,28 @@ tokenizer = CharacterTokenizer(
     padding_side='left',
 )
 
-ds = DNADataset(df, tokenizer, model_max_length, use_padding)
-
 if is_finetuned:
-    ds_train, ds_val, ds_test = split_dataset(ds, dataset_split_path)
+    data_split = DataSplit(df, dataset_split_path, split_type)
+    df_train, df_val, df_test = data_split.split(id, train_ids, val_ids, test_ids)
 
-    if use_saved_model:  # finetuned_model_path should be present
-        print(f"*** Loading finetuned model '{finetuned_model_path}'")
-        model.load_state_dict(torch.load(finetuned_model_path))
+    ds_train = DNADataset(df_train, tokenizer, model_max_length, use_padding)
+    ds_val = DNADataset(df_val, tokenizer, model_max_length, use_padding)
+    ds_test = DNADataset(df_test, tokenizer, model_max_length, use_padding)
+    
+    ft = FineTune(model, tokenizer, model_max_length, use_padding, device, model_dir, model_params, freeze_layers)
 
+    if use_saved_model:  # saved_finetuned_model_name should be present
+        model = ft.load(saved_finetuned_model_name)
     else:
-        print(f"*** Performing finetuning on '{dataset_path}'")
+        finetuned_model_name = f'fine_tuned_hyena_{pretrained_model_name}_{split_type}'
+        model = ft.finetune(ds_train, ds_val, loss_dir, finetuned_model_name)
 
-        ft = FineTune(model, tokenizer, model_max_length, use_padding, device, loss_dir, model_params, freeze_layers)
-        model = ft.finetune(ds_train, ds_val)
-
-        torch.save(model.state_dict(), finetuned_model_path)
-        print(f"Finetuned model saved to {finetuned_model_path}")
+    ft.test(ds_test, test_result_path)
 
 model.to(device)
 
 if generate_embedding:
-    print(f"*** Generating embedding")
+    print(f"Generating embedding...")
     embd = Embedding(model, tokenizer, model_max_length, use_padding, is_finetuned, embedding_dir, device)
 
     if is_finetuned:

@@ -18,7 +18,7 @@ class DNADataset(torch.utils.data.Dataset):
         label = self.df.iloc[idx]['label']
 
         # Tokenize the sequence
-        seq = self.tokenizer(sequence,
+        tokenized_seq = self.tokenizer(sequence,
                              add_special_tokens=False,
                              padding="max_length" if self.use_padding else None,
                              max_length=self.max_length,
@@ -29,7 +29,7 @@ class DNADataset(torch.utils.data.Dataset):
         if self.add_eos:
             seq.append(self.tokenizer.sep_token_id)
 
-        seq = torch.LongTensor(seq)
+        tokenized_seq = torch.LongTensor(tokenized_seq)
         label = torch.LongTensor([label])
 
-        return seq, label
+        return sequence, tokenized_seq, label
