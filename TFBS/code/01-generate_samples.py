@@ -9,7 +9,8 @@ Example usage
 
 python 01-generate_samples.py --fasta_file path/to/your.fasta --peak_file path/to/peaks.csv --output_file path/to/output.csv --neg_type shuffle -- species SI/ATA
 
-python 01-generate_samples.py --fasta_file ../inputs/Arabidopsis_thaliana.TAIR10.dna_sm.toplevel.fa --peak_file ../inputs/ata_peaks.csv --output_file ../inputs/ata_training_shuffle_neg_stride_200.csv
+python 01-generate_samples.py --fasta_file ../inputs/fastas/Arabidopsis_thaliana.TAIR10.dna_sm.toplevel.fa --peak_file ../inputs/peak_files/AtABFs_DAP-Seq_peaks.csv --output_file ../inputs/AtABFs_training_shuffle_neg_stride_200.csv
+python 01-generate_samples.py --fasta_file ../inputs/fastas/Si_sequence --peak_file ../inputs/peak_files/SiABFs_DAP-Seq_peaks.csv --species "Si" --output_file ../inputs/SiABFs_training_shuffle_neg_stride_200.csv
 
 """
 
@@ -19,7 +20,7 @@ def parse_arguments():
     parser.add_argument("--peak_file", type=str, required=True, help="Path to the CSV file containing peaks.")
     parser.add_argument("--output_file", type=str, required=True, help="Path to save the output CSV file.")
     parser.add_argument("--neg_type", type=str, choices=["shuffle", "random"], required=False, default="shuffle")
-    parser.add_argument("--species", type=str, choices=["SI", "ATA"], required=False,  default="ATA", help="Species type: SI or ATA")
+    parser.add_argument("--species", type=str, choices=["Si", "At"], required=False,  default="At", help="Species type: Si or At")
     parser.add_argument("--sliding_window", type=int, required=False, default=200)
     return parser.parse_args()
 
@@ -35,9 +36,9 @@ def all_N(sequence):
 
 # Process chromosome ID based on species
 def process_chrom_id(chrom, species):
-    if species == "SI":
+    if species == "Si":
         return f"lcl|{chrom}"
-    elif species == "ATA":
+    elif species == "At":
         return chrom.replace("Chr", "")
     return chrom
 
@@ -48,11 +49,17 @@ def load_fasta_sequences(fasta_file):
 
 def generate_positive_samples(peaks_df, fasta_sequences, species, sliding_window):
     positive_samples = []
+    not_found = 0
     for ind, row in peaks_df.iterrows():
         # get sequence coordinates
         chrom_id = process_chrom_id(row["ChrID"], species)
+
         start = row["start"]
         end = row["end"]
+        # print(chrom_id)
+        # print(start)
+        # print(end)
+        # input()
         
         if chrom_id in fasta_sequences:
             full_sequence = fasta_sequences[str(chrom_id)].seq
@@ -65,6 +72,14 @@ def generate_positive_samples(peaks_df, fasta_sequences, species, sliding_window
                 print(f'all bases for row {ind+1} in peak file is N.\nIgnoring the row...')
             else:
                 positive_samples.append(((str(sequence)).upper(), chrom_id))  # Include chrom_id
+        else:
+            print(f"{chrom_id} not in fasta file!")
+            not_found +=1
+
+    if not_found == 0:
+        print("all rows in peak file has been found in fasta file...")
+    else:
+        print(f"sequence regarding to {not_found} / {len(peaks_df)} rows has not beed found in fasta file...")
 
     return positive_samples
 
@@ -105,11 +120,7 @@ def main():
 
     # Combine into a DataFrame and save
     data = pd.DataFrame({
-        "sequence": positive_samples + negative_samples,
-        "label": [1] * len(positive_samples) + [0] * len(negative_samples)
-    })
-
-    data = pd.DataFrame({
+        "species": [args.species] * (len(positive_samples) + len(negative_samples)),
         "chromosomeId": [chrom for _, chrom in positive_samples + negative_samples],
         "sequence": [seq for seq, _ in positive_samples + negative_samples],
         "label": [1] * len(positive_samples) + [0] * len(negative_samples)

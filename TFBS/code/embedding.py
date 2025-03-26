@@ -6,11 +6,8 @@ from sklearn.decomposition import PCA
 import torch
 
 class Embedding:
-    def __init__(self, model, tokenizer, max_seq_length, use_padding, is_finetuned, embedding_dir, device):
+    def __init__(self, is_finetuned, embedding_dir, device):
         self.model = model
-        self.tokenizer = tokenizer
-        self.max_seq_length = max_seq_length
-        self.use_padding = use_padding
         self. is_finetuned = is_finetuned
         self.embedding_dir = embedding_dir
         self.embedding_dir = os.path.join(self.embedding_dir, 'FineTuned' if is_finetuned else 'PreTrained')
@@ -18,10 +15,16 @@ class Embedding:
 
         self.device = device
 
+        hyena_model = HyenaDNAModel(pretrained_model_name=checkpoint_path, checkpoint_path=checkpoint_path,
+                                    use_head=True, device=self.device)
+        
         # Register a forward hook on the last LayerNorm (ln_f) to save the output of the LayerNorm layer as hidden_embeddinfs
         if self.is_finetuned:
+            self.model = hyena_model.load_saved_model(model_path)
             self.embeddings_hook = self.model.backbone.ln_f.register_forward_hook(self._save_layernorm_output)
+            
         else:
+            self.model = hyena_model.load_pretrained_model()
             self.embeddings_hook = None
 
     def _save_layernorm_output(self, module, input, output):
@@ -89,21 +92,6 @@ class Embedding:
             for input_ids, label in dataset:
 
                 self.labels.append(label.item())
-
-                # sequence = row['sequence']
-                # label = row['label']
-    
-                # # Tokenize the sequence
-                # inputs = self.tokenizer(
-                #     sequence,
-                #     add_special_tokens=False,
-                #     padding='max_length',
-                #     max_length=self.max_seq_length,
-                #     truncation=True
-                # )
-
-                # input_ids = torch.tensor(inputs['input_ids']).unsqueeze(0).to(self.device) # Add batch dimension
-
 
                 input_ids = input_ids.unsqueeze(0).to(self.device)  # add batch dimension and move to device
     

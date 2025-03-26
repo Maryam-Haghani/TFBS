@@ -1,6 +1,16 @@
 import pandas as pd
 import logging
 from collections import Counter
+import argparse
+
+# python analyze_data.py --generated_data_file '../inputs/AtABFs_training_shuffle_neg_stride_200.csv' --species "At"
+# python analyze_data.py --generated_data_file '../inputs/SiABFs_training_shuffle_neg_stride_200.csv' --species "Si"
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Analyze generated dataset")
+    parser.add_argument("--generated_data_file", type=str, required=True, help="Path to the CSV file containing generated samples")
+    parser.add_argument("--species", type=str, choices=["Si", "At"], required=False,  default="At", help="Species type: Si or At")
+    return parser.parse_args()
 
 def create_logger(log_file):
   logger = logging.getLogger(__name__)
@@ -31,10 +41,12 @@ def count_nucleotide(df):
     frequency = Counter(all_sequences)
     return dict(frequency)
 
-# df = pd.read_csv('../inputs/ata_training_pos_shuffle_neg_200.csv')
-df = pd.read_csv('../inputs/ata_training_shuffle_neg_stride_200.csv')
 
-logger = create_logger('../outputs/logs/data.log')
+args = parse_arguments()
+
+df = pd.read_csv(args.generated_data_file)
+
+logger = create_logger(f'../outputs/logs/data_{args.species}.log')
 
 # ALL DATA
 logger.info("************** ALL **************")
