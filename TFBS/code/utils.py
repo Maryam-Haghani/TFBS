@@ -71,4 +71,8 @@ def extract_single_value(value):
         raise TypeError("must be a number or a list with one element")
     return value
 
+def get_file_name(file_path):
+    filename_without_extension = os.path.splitext(os.path.basename(file_path))[0]
+    return filename_without_extension
+
 

@@ -13,7 +13,8 @@ from standard_fine_tune import FineTune
 from embedding import Embedding
 from dna_dataset import DNADataset
 from data_split import DataSplit
-from utils import dict_to_namespace, load_config
+from utils import dict_to_namespace, load_config, get_file_name, serialize_dict, serialize_array
+from visualization import plot_loss, plot_auroc_auprc
 from hyena_dna import HyenaDNAModel
 
 from utils import extract_single_value, extract_value_as_list
@@ -22,8 +23,7 @@ from logger import CustomLogger
 
 
 # python 02-train.py --config_file "../configs/standard_config.yml"
-# python 02-train.py --config_file "../configs/standard_cross-species_config.yml"
-
+# python 02-train.py  --config_file "../configs/standard_cross-species_config.yml"
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -64,7 +64,6 @@ if __name__ == "__main__":
 
     # Extract sections from the config
     paths = config.paths
-    dataset_split_config = config.dataset_split
 
     df = read_dataset(config.paths.dataset_path)
 
@@ -72,13 +71,13 @@ if __name__ == "__main__":
     os.makedirs(model_dir, exist_ok=True)
     os.makedirs(model_dir, exist_ok=True)
 
-    loss_dir = os.path.join(config.paths.loss_dir, config.model.pretrained_model_name, config.dataset_split.split_type)
-    os.makedirs(loss_dir, exist_ok=True)
+    plot_dir = os.path.join(config.paths.plot_dir, config.model.pretrained_model_name, config.dataset_split.split_type)
+    os.makedirs(plot_dir, exist_ok=True)
 
     test_result_dir = os.path.join(config.paths.test_result_dir, config.model.pretrained_model_name, config.dataset_split.split_type)
     os.makedirs(test_result_dir, exist_ok=True)
 
-    logger = CustomLogger(__name__, log_directory=config.paths.log_dir, log_file = config.log_file).get_logger()
+    logger = CustomLogger(__name__, log_directory=config.paths.log_dir, log_file = f'log_{get_file_name(args.config_file)}')
 
     data_split = DataSplit(logger, df, config.paths.dataset_split_path, config.dataset_split.split_type,
                            config.dataset_split.train_size, config.dataset_split.random_state)
@@ -91,45 +90,76 @@ if __name__ == "__main__":
     ds_val = DNADataset(df_val, tokenizer, config.model.model_max_length, config.model.use_padding)
     ds_test = DNADataset(df_test, tokenizer, config.model.model_max_length, config.model.use_padding)
 
+    ft = FineTune(logger, config.device, model_dir, config.training)
 
     if config.model.use_saved_model:  # saved_finetuned_model_name should be present
         config.training.model_params.batch_size = extract_single_value(config.training.model_params.batch_size)
 
-        ft = FineTune(logger, config.model.pretrained_model_name, config.device, model_dir, config.training)
         model = ft.load(config.model.saved_finetuned_model_name)
-
         test_accuracy = ft.test(ds_test, test_result_dir)
 
     else:
+
         grid_combinations = list(product(config.training.model_params.batch_size,
                                          config.training.model_params.learning_rate,
-                                         config.training.model_params.weight_decay))
-        
-        logger.info(f'There are {len(grid_combinations)} combination of parameters...')
+                                         config.training.model_params.weight_decay,
+                                         config.training.freeze_layers,
+                                         ))
+
+        logger.log_message(f'There are {len(grid_combinations)} combination of parameters...')
 
         results = []
+        param_combinations = []
+        train_loss_per_param = []
+        val_loss_per_param = []
+        auroc_per_param = []
+        auprc_per_param = []
+        
         # finetune based on each combination
-        for batch_size, learning_rate, weight_decay in grid_combinations:
-            logger.info(f"Training with batch_size={batch_size}, learning_rate={learning_rate}, weight_decay={weight_decay}")
+        for batch_size, learning_rate, weight_decay, freeze_layer in grid_combinations:
+            logger.log_message("\n********************************************************************")
+            logger.log_message(f"Training with batch_size={batch_size}, learning_rate={learning_rate},"
+                        f" weight_decay={weight_decay}, freeze_layer={freeze_layer}")
 
             # Update model_params for this combination
             config.training.model_params.batch_size = batch_size
             config.training.model_params.learning_rate = learning_rate
             config.training.model_params.weight_decay = weight_decay
+            config.training.freeze_layers = freeze_layer
 
-            ft = FineTune(logger, config.model.pretrained_model_name, config.device, model_dir, config.training)
-            model = ft.finetune(ds_train, ds_val, loss_dir)
+            param_combinations.append(
+                f'{serialize_dict(config.training.model_params)}_freeze_layer-{serialize_array(config.training.freeze_layers)}')
 
-            test_accuracy = ft.test(ds_test, test_result_dir)
+            # Reload the pretrained model fresh each time for the current combination
+            ft.model = HyenaDNAModel(logger, pretrained_model_name=config.model.pretrained_model_name,
+                                     use_head=True, device=config.device).load_pretrained_model()
 
+            model, train_losses, val_losses, auroc_per_epoch, auprc_per_epoch = ft.finetune(ds_train, ds_val)
+            train_loss_per_param.append(train_losses)
+            val_loss_per_param.append(val_losses)
+            auroc_per_param.append(auroc_per_epoch)
+            auprc_per_param.append(auprc_per_epoch)
+            
+            test_accuracy, auroc, auprc = ft.test(ds_test, test_result_dir)
             results.append({
                         'batch_size': batch_size,
                         'learning_rate': learning_rate,
                         'weight_decay': weight_decay,
-                        'test_accuracy': test_accuracy
+                        'freeze_layer': freeze_layer,
+                        'accuracy': test_accuracy,
+                        'auroc': auroc,
+                        'auprc': auprc
                     })
+            
+        config_name = get_file_name(args.config_file)
 
+        # plot validation metrics for each epoch
+        plot_loss(param_combinations, train_loss_per_param, val_loss_per_param, plot_dir, f'loss_{config_name}.pdf')
+        plot_auroc_auprc('AUROC', param_combinations, auroc_per_param, plot_dir, config_name)
+        plot_auroc_auprc('AUPRC', param_combinations, auprc_per_param, plot_dir, config_name)
+        
+        # get metrics for test set
         df_results = pd.DataFrame(results)
-        results_csv_path = f'../outputs/hyper_params.csv'
+        results_csv_path = f'../outputs/hyper_params_{get_file_name(args.config_file)}.csv'
         df_results.to_csv(results_csv_path, index=False)
-        logger.info(f"Grid search results saved to {results_csv_path}")
+        logger.log_message(f"Grid search results saved to {results_csv_path}", use_time=True)

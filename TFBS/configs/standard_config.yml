@@ -28,7 +28,7 @@ model:
       # 'hyenadna-medium-450k-seqlen'
       # 'hyenadna-large-1m-seqlen'
   is_finetuned: true
-  use_saved_model: true
+  use_saved_model: false
   saved_finetuned_model_name: "fine-tuned_model_batch_size_32_learning_rate_1e-4_weight_decay_0.1_freeze_layers-.pt"
   # "fine-tuned_model_batch_size_32_learning_rate_1e-4_weight_decay_0.1_freeze_layers-.pt"
 
@@ -46,7 +46,7 @@ training:
   early_stopping:
     patience: 5
     delta: 0.0
-  freeze_layers: [ ]
+  freeze_layers: ['backbone', 'backbone.embeddings', 'backbone.layers', 'none']
   # 'backbone.embeddings': Freezes the embedding layer.
   # 'backbone.layers'    : Freezes all transformer blocks.
   # 'backbone.layers.[i]': Freezes a specific transformer block.

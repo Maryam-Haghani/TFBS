@@ -13,14 +13,14 @@ from standalone_hyenadna import CharacterTokenizer
 from huggingface import HyenaDNAPreTrainedModel
 
 class HyenaDNAModel:
-    def __init__(self, pretrained_model_name, use_head, device):
-
+    def __init__(self, logger, pretrained_model_name, use_head, device):
+        self.logger = logger
         self.pretrained_model_name = pretrained_model_name
         self.use_head = use_head
         self.device = device
 
     def load_pretrained_model(self):
-        print(f"Getting pretrained model '{self.pretrained_model_name}' on device '{self.device}'...")
+        self.logger.log_message(f"Getting pretrained model '{self.pretrained_model_name}' on device '{self.device}'...")
         model = HyenaDNAPreTrainedModel.from_pretrained(
             "../models/checkpoints",
             self.pretrained_model_name,

@@ -21,21 +21,37 @@ class CustomLogger:
         log_path = os.path.join(log_directory, log_file)
 
         # Create a file handler that writes to the specified log file
-        file_handler = logging.FileHandler(log_path)
-        file_handler.setLevel(level)
+        self.file_handler = logging.FileHandler(log_path)
+        self.file_handler.setLevel(level)
 
         # Create a console (stream) handler
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(level)
+        self.console_handler = logging.StreamHandler()
+        self.console_handler.setLevel(level)
 
         # Define a formatter and add it to both handlers
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
-        console_handler.setFormatter(formatter)
+        # formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        console_formatter_with_time = logging.Formatter('%(asctime)s - %(message)s')
+        console_formatter_without_time = logging.Formatter('%(message)s')
 
         # Add both handlers to the logger
-        self.logger.addHandler(file_handler)
-        self.logger.addHandler(console_handler)
+        self.logger.addHandler(self.file_handler)
+        self.logger.addHandler(self.console_handler)
+
+        # By default, set console handler NOT to include time
+        self.console_handler.setFormatter(console_formatter_without_time)
+        self.file_handler.setFormatter(console_formatter_without_time)
 
     def get_logger(self):
         return self.logger
+
+    def log_message(self, message: str, use_time: bool = False):
+        # Switch the console handler formatter based on the flag
+        if use_time:
+            self.console_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
+            self.file_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
+        else:
+            self.console_handler.setFormatter(logging.Formatter('%(message)s'))
+            self.file_handler.setFormatter(logging.Formatter('%(message)s'))
+
+        # Log the message
+        self.logger.info(message)

@@ -16,7 +16,7 @@ class DataSplit:
         split_path = os.path.join(self.dataset_split_path, self.split_type)
 
         if os.path.exists(split_path):
-            self.logger.info(f"Loading {self.split_type} splits from {split_path}")
+            self.logger.log_message(f"Loading {self.split_type} splits from {split_path}")
             df_train = pd.read_csv(os.path.join(split_path, 'train_dataset.csv'))
             df_val = pd.read_csv(os.path.join(split_path, 'val_dataset.csv'))
             df_test = pd.read_csv(os.path.join(split_path, 'test_dataset.csv'))
@@ -31,14 +31,14 @@ class DataSplit:
             df_train.to_csv(os.path.join(split_path, 'train_dataset.csv'), index=False)
             df_val.to_csv(os.path.join(split_path, 'val_dataset.csv'), index=False)
             df_test.to_csv(os.path.join(split_path, 'test_dataset.csv'), index=False)
-            self.logger.info(f"Splits saved at {split_path}")
+            self.logger.log_message(f"Splits saved at {split_path}")
 
-        self.logger.info("Original label distribution:")
-        self.logger.info(self.df[self.label].value_counts())
+        self.logger.log_message("Original label distribution:")
+        self.logger.log_message(self.df[self.label].value_counts())
 
-        self.logger.info(f"\nTrain label distribution: {df_train[self.label].value_counts()}")
-        self.logger.info(f"\nValidation label distribution: {df_val[self.label].value_counts()}")
-        self.logger.info(f"\nTest label distribution: {df_test[self.label].value_counts()}")
+        self.logger.log_message(f"\nTrain label distribution: {df_train[self.label].value_counts()}")
+        self.logger.log_message(f"\nValidation label distribution: {df_val[self.label].value_counts()}")
+        self.logger.log_message(f"\nTest label distribution: {df_test[self.label].value_counts()}")
 
         return df_train, df_val, df_test
 
@@ -56,18 +56,18 @@ class DataSplit:
 
     # Splits the dataset based on the 'id' column.
     def _split_dataset_by_id(self, id, train_ids, val_ids, test_ids):
-        self.logger.info(f"Cross {id} split train={train_ids}, test={test_ids}")
+        self.logger.log_message(f"Cross {id} split train={train_ids}, test={test_ids}")
 
         # check for provided ids that are missing in the dataset
         unique_ids = set(self.df[id].unique())
-        self.logger.info(f"unique {id}s: {unique_ids}")
+        self.logger.log_message(f"unique {id}s: {unique_ids}")
         missing_train = set(train_ids) - unique_ids
         missing_test = set(test_ids) - unique_ids
 
         if missing_train:
-            self.logger.info(f"Warning: The following {id}s for training do not exist in the dataset:", missing_train)
+            self.logger.log_message(f"Warning: The following {id}s for training do not exist in the dataset:", missing_train)
         if missing_test:
-            self.logger.info(f"Warning: The following {id}s for testing do not exist in the dataset:", missing_test)
+            self.logger.log_message(f"Warning: The following {id}s for testing do not exist in the dataset:", missing_test)
 
         df_train = self.df[self.df[id].isin(train_ids)]
         df_test = self.df[self.df[id].isin(test_ids)]
@@ -79,7 +79,7 @@ class DataSplit:
         else: # specific ids have been given
             missing_val = set(val_ids) - unique_ids
             if missing_val:
-                self.logger.info(f"Warning: The following {id}s for validation do not exist in the dataset:", missing_val)
+                self.logger.log_message(f"Warning: The following {id}s for validation do not exist in the dataset:", missing_val)
             df_val = self.df[self.df[id].isin(val_ids)]
 
 
@@ -87,6 +87,6 @@ class DataSplit:
         assigned = set(train_ids) | set(val_ids) | set(test_ids)
         df_unassigned = self.df[~self.df[id].isin(assigned)]
         if not df_unassigned.empty:
-            self.logger.info(f"Warning: Some rows were not assigned to any split. These rows have {id}s:", df_unassigned[id].unique())
+            self.logger.log_message(f"Warning: Some rows were not assigned to any split. These rows have {id}s:", df_unassigned[id].unique())
 
         return df_train, df_val, df_test
