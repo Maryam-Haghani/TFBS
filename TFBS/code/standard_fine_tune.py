@@ -2,18 +2,14 @@ import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.nn.functional import softmax
 import torch.nn.functional as F
 import torch.optim as optim
-from transformers import AutoModel
 import os
 from torch.utils.data import DataLoader
 from early_stop import EarlyStopping
 from utils import serialize_dict, serialize_array
 from sklearn.metrics import roc_auc_score, average_precision_score
-
-
-from hyena_dna import HyenaDNAModel
+from visualization import plot_roc_pr
 
 class FineTune:
     def __init__(self, logger, device, model_dir, training_params):
@@ -36,15 +32,15 @@ class FineTune:
         self.model.train()
         train_loss = 0
         total = 0
-        for batch_idx, (sequence, data, target) in enumerate(train_loader):
-            data, target = data.to(self.device), target.to(self.device)
+        for batch_idx, (sequence, data, labels) in enumerate(train_loader):
+            data, labels = data.to(self.device), labels.to(self.device)
             optimizer.zero_grad()
 
             output = self.model(data)
 
             total += data.size(0)
 
-            loss = loss_fn(output, target.squeeze(1))  # the average loss across batch
+            loss = loss_fn(output, labels.squeeze(1))  # the average loss across batch
             batch_loss = loss.item() * data.size(0)  # multiply loss by batch size to get total loss for this batch
             train_loss += batch_loss
 
@@ -61,48 +57,53 @@ class FineTune:
 
         return avg_train_loss
 
-    def _test(self, test_loader, loss_fn=None, test_result_path=None):
+    def _test(self, test_loader, loss_fn=None, test_result_dir=None):
         self.model.eval()
         test_loss = 0
         correct = 0
         total = 0
-        all_probs = []  # probabilities
-        all_targets = []  # true labels
+        all_pos_probs = []  # probabilities of positive class (class 1)
+        all_labels = []  # true labels
         results = []
         with torch.no_grad():
-            for sequence, data, target in test_loader:
-                data, target = data.to(self.device), target.to(self.device)
-
+            for sequence, data, true_labels in test_loader:
+                data, true_labels = data.to(self.device), true_labels.to(self.device)
                 output = self.model(data)
 
                 probs = F.softmax(output, dim=1) # probabilities for each class
-                pred = output.argmax(dim=1, keepdim=True)  # predicted class index
-                correct += pred.eq(target.view_as(pred)).sum().item()
+                pred_labels = output.argmax(dim=1, keepdim=True)  # predicted class index
+                correct += pred_labels.eq(true_labels.view_as(pred_labels)).sum().item()
                 total += data.size(0)
-                all_probs.append(probs[:, 1].cpu().numpy())  # probabilities for the positive class (class 1)
-                all_targets.append(target.cpu().numpy())  # true labels
+
+                all_pos_probs.append(probs[:, 1].cpu().numpy())
+                all_labels.append(true_labels.cpu().numpy())
 
                 if loss_fn is not None: # validating
                     # Compute the loss for the batch and accumulate it
-                    batch_avg_loss = loss_fn(output, target.squeeze(1))  # calculates the average loss per sample in the batch.
+                    batch_avg_loss = loss_fn(output, true_labels.squeeze(1))  # calculates the average loss per sample in the batch.
                     batch_loss = batch_avg_loss.item() * data.size(0)  # multiply loss by batch size (data.size(0)) to get total loss for this batch
                     test_loss += batch_loss
                 else:
                     # Collect results for each sample in the batch
-                    for seq, label, p, prob in zip(sequence, target, pred, probs):
+                    for seq, true_label, pred_label, prob in zip(sequence, true_labels, pred_labels, probs):
                         results.append({'sequence': seq,
-                                        'true_label': label.item(),
-                                        'predicted_label': p.item(),
-                                        'prediction_probability': prob[p.item()].item()
+                                        'true_label': true_label.item(),
+                                        'probability':  prob.cpu().numpy(),
+                                        'predicted_label': pred_label.item(),
+                                        'prediction_probability': prob[pred_label.item()].item(),
+                                        'positive_probability': prob[1].item()
                                          })
 
         # flatten the lists
-        all_probs = np.concatenate(all_probs)
-        all_targets = np.concatenate(all_targets)
+        all_pos_probs = np.concatenate(all_pos_probs)
+        all_labels = np.concatenate(all_labels)
 
         accuracy = 100.0 * correct / total if total > 0 else 0
-        auroc = roc_auc_score(all_targets, all_probs)
-        auprc = average_precision_score(all_targets, all_probs)
+        try:
+            auroc = roc_auc_score(all_labels, all_pos_probs)
+        except ValueError:
+            auroc = float('nan')  # when only one class present
+        auprc = average_precision_score(all_labels, all_pos_probs)
 
         self.logger.log_message(f'Accuracy: {accuracy:.2f}%\n')
         self.logger.log_message(f'AUROC: {auroc:.2f}\n')
@@ -114,19 +115,24 @@ class FineTune:
             self.logger.log_message(f'\nValidation loss: {avg_test_loss:.4f}\n')
             return accuracy, auroc, auprc, avg_test_loss
         else: # save test results
+            test_result_path = os.path.join(test_result_dir, f'{self.model_name}.csv')
             df = pd.DataFrame(results)
             df.to_csv(test_result_path, index=False)
             self.logger.log_message(f'Test results saved to {test_result_path}')
+
+            plot_roc_pr('ROC', all_labels, all_pos_probs,'False Positive Rate',
+                        'True Positive Rate', test_result_dir, self.model_name)
+            plot_roc_pr('PR', all_labels, all_pos_probs, 'Recall',
+                        'Precision', test_result_dir, self.model_name)
+
             return accuracy, auroc, auprc
 
     # compute metrics for test dataset
     def test(self, ds_test, test_result_dir):
         self.logger.log_message("Getting test set accuracy...")
-        
-        test_result_path = os.path.join(test_result_dir, f'{self.model_name}.csv')
 
         test_loader = DataLoader(ds_test, batch_size=self.training.model_params.batch_size, shuffle=True)
-        acc, auroc, auprc = self._test(test_loader, test_result_path=test_result_path)
+        acc, auroc, auprc = self._test(test_loader, test_result_dir=test_result_dir)
         return acc, auroc, auprc
 
     # finetune the model based on the given dataset
@@ -207,7 +213,8 @@ class FineTune:
             torch.save(self.model.state_dict(), model_path)
             self.logger.log_message(f"Best model saved as: {model_path}")
 
-        return self.model.to(self.device), train_losses, val_losses, auroc_per_epoch, auprc_per_epoch
+        return (self.model.to(self.device), f'{trainable_params} / {total_params}', train_losses,
+                val_losses, auroc_per_epoch, auprc_per_epoch)
 
     # load the saved parameters to the model
     def load(self, finetuned_model_name):
