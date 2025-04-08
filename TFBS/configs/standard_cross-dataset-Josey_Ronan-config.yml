@@ -1,0 +1,55 @@
+# standard_config.yml
+
+paths:
+  dataset_path: ["../inputs/Ronan-AtABF2_training_shuffle_neg_stride_200.csv", "../inputs/Josey-AtABF2_training_shuffle_neg_stride_200.csv"]
+  dataset_split_path: "../inputs/data_splits/AtABF2_Josey-training_Ronan-test_shuffle_neg_stride_200"
+  model_dir: "../models/AtABF2_Josey-training_Ronan-test/standard"
+  test_result_dir: "../outputs/AtABF2_Josey-training_Ronan-test/standard/test_results"
+  plot_dir: "../outputs/AtABF2_Josey-training_Ronan-test/standard/plots"
+  log_dir: "../outputs/logs"
+  
+dataset_split:
+  split_type: "cross_id"  # Options: 'random' or 'cross_id'
+  id_column: "dataset"
+  train_ids: ["Josey"]
+  val_ids: "random" # random (which will be used to randomly split training to train and val) or a specific id
+  test_ids: ["Ronan"]
+  train_size: 0.8
+  random_state: 436346
+  
+model:
+  use_padding: true
+  model_max_length: 350
+  pretrained_model_name: "hyenadna-tiny-1k-seqlen"
+      # 'hyenadna-tiny-1k-seqlen'
+      # 'hyenadna-tiny-1k-seqlen-d256'
+      # 'hyenadna-tiny-16k-seqlen-d128''
+      # 'hyenadna-small-32k-seqlen'
+      # 'hyenadna-medium-160k-seqlen'
+      # 'hyenadna-medium-450k-seqlen'
+      # 'hyenadna-large-1m-seqlen'
+  is_finetuned: true
+  use_saved_model: false
+  saved_finetuned_model_name: "fine-tuned_model_batch_size_32_learning_rate_1e-4_weight_decay_0.1_freeze_layers-.pt"
+  # "fine-tuned_model_batch_size_32_learning_rate_1e-4_weight_decay_0.1_freeze_layers-.pt"
+
+device: "cuda"
+  
+training:
+  num_epochs: 60
+  model_params:
+    batch_size: [32]
+    learning_rate: [1e-4]
+    weight_decay: [0.1]
+#    batch_size: [ 32, 64, 128, 256 ]
+#    learning_rate: [ 1e-6, 1e-5, 1e-4, 1e-3 ]
+#    weight_decay: [ 0.0, 0.01, 0.1 ]
+  early_stopping:
+    patience: 5
+    delta: 0.0
+  freeze_layers: [['backbone'], ['backbone.embeddings'], ['backbone.layers'], ['none']]
+  # 'backbone.embeddings': Freezes the embedding layer.
+  # 'backbone.layers'    : Freezes all transformer blocks.
+  # 'backbone.layers.[i]': Freezes a specific transformer block.
+  # 'backbone'           : Freezes the entire backbone (embeddings + all transformer layers).
+  # 'head'               : Freezes the output classification head.
