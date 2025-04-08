@@ -24,11 +24,26 @@ from logger import CustomLogger
 
 # python 02-train.py --config_file "../configs/standard_config.yml"
 # python 02-train.py  --config_file "../configs/standard_cross-species_config.yml"
+# python 02-train.py  --config_file "../configs/standard_cross-dataset-Ronan_Josey-config.yml"
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_file", type=str, required=True, help="Path to the config file.")
     return parser.parse_args()
+
+
+def get_unique(df):
+    print(f'number of original rows: {len(df)}')
+    subset = ['chromosomeId', 'sequence']
+    redundant_df = df[df.duplicated(subset=subset, keep=False)]
+    print(f'number of redundant rows for {subset}: {len(redundant_df)}')
+
+    redundant_df = df[df.duplicated(subset=subset)]
+    print(f'number of removing redundant rows for {subset}: {len(redundant_df)}')
+
+    unique_df = df.loc[~df.duplicated(subset=subset, keep='first')]
+    print(f'number of unique rows for {subset}: {len(unique_df)}')
+    return unique_df
 
 def read_dataset(dataset_paths):
     dfs = []
@@ -65,7 +80,7 @@ if __name__ == "__main__":
     # Extract sections from the config
     paths = config.paths
 
-    df = read_dataset(config.paths.dataset_path)
+    df = get_unique(read_dataset(config.paths.dataset_path))
 
     model_dir = os.path.join(config.paths.model_dir, config.model.pretrained_model_name, config.dataset_split.split_type)
     os.makedirs(model_dir, exist_ok=True)
@@ -83,6 +98,7 @@ if __name__ == "__main__":
                            config.dataset_split.train_size, config.dataset_split.random_state)
     df_train, df_val, df_test = data_split.split(config.dataset_split.id_column, config.dataset_split.train_ids,
                                                  config.dataset_split.val_ids, config.dataset_split.test_ids)
+    input("******")
     
     tokenizer = HyenaDNAModel.get_tokenizer(config.model.model_max_length)
 
@@ -157,7 +173,7 @@ if __name__ == "__main__":
         plot_loss(param_combinations, train_loss_per_param, val_loss_per_param, plot_dir, f'loss_{config_name}.pdf')
         plot_auroc_auprc('AUROC', param_combinations, auroc_per_param, plot_dir, config_name)
         plot_auroc_auprc('AUPRC', param_combinations, auprc_per_param, plot_dir, config_name)
-        
+
         # get metrics for test set
         df_results = pd.DataFrame(results)
         results_csv_path = f'../outputs/hyper_params_{get_file_name(args.config_file)}.csv'
