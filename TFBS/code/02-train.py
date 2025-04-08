@@ -1,19 +1,13 @@
 import torch
-from torch.nn.functional import softmax
-import torch.nn.functional as F
-from Bio import SeqIO
-import numpy as np
 import pandas as pd
 import os
-import sys
 from itertools import product
 import argparse
 
 from standard_fine_tune import FineTune
-from embedding import Embedding
 from dna_dataset import DNADataset
 from data_split import DataSplit
-from utils import dict_to_namespace, load_config, get_file_name, serialize_dict, serialize_array
+from utils import load_config, get_file_name, serialize_dict, serialize_array
 from visualization import plot_loss, plot_auroc_auprc
 from hyena_dna import HyenaDNAModel
 
@@ -98,8 +92,7 @@ if __name__ == "__main__":
                            config.dataset_split.train_size, config.dataset_split.random_state)
     df_train, df_val, df_test = data_split.split(config.dataset_split.id_column, config.dataset_split.train_ids,
                                                  config.dataset_split.val_ids, config.dataset_split.test_ids)
-    input("******")
-    
+
     tokenizer = HyenaDNAModel.get_tokenizer(config.model.model_max_length)
 
     ds_train = DNADataset(df_train, tokenizer, config.model.model_max_length, config.model.use_padding)
@@ -150,7 +143,8 @@ if __name__ == "__main__":
             ft.model = HyenaDNAModel(logger, pretrained_model_name=config.model.pretrained_model_name,
                                      use_head=True, device=config.device).load_pretrained_model()
 
-            model, train_losses, val_losses, auroc_per_epoch, auprc_per_epoch = ft.finetune(ds_train, ds_val)
+            model, trainable_params, train_losses, val_losses, auroc_per_epoch, auprc_per_epoch = (
+                ft.finetune(ds_train, ds_val))
             train_loss_per_param.append(train_losses)
             val_loss_per_param.append(val_losses)
             auroc_per_param.append(auroc_per_epoch)
@@ -162,6 +156,7 @@ if __name__ == "__main__":
                         'learning_rate': learning_rate,
                         'weight_decay': weight_decay,
                         'freeze_layer': freeze_layer,
+                        'trainable_params': trainable_params,
                         'accuracy': test_accuracy,
                         'auroc': auroc,
                         'auprc': auprc

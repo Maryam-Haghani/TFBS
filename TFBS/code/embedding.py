@@ -2,7 +2,6 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
-from sklearn.decomposition import PCA
 import torch
 
 class Embedding:

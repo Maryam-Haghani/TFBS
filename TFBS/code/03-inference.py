@@ -1,14 +1,5 @@
-import pandas as pd
-import numpy as np
 import torch
-import torch.nn as nn
 from torch.nn.functional import softmax
-import torch.nn.functional as F
-import torch.optim as optim
-from transformers import AutoModel
-import os
-from torch.utils.data import DataLoader
-import matplotlib.pyplot as plt
 
 
 # predict binding site across entire sequence

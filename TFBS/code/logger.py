@@ -1,4 +1,3 @@
-# mylogger.py
 import os
 import logging
 

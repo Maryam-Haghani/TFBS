@@ -1,6 +1,4 @@
 import torch
-from torch.nn.functional import softmax
-import torch.nn.functional as F
 
 class DNADataset(torch.utils.data.Dataset):
     def __init__(self, df, tokenizer, max_length, use_padding=True, add_eos=False):
