@@ -21,9 +21,9 @@ def parse_arguments():
     parser.add_argument("--output_file", type=str, required=True, help="Path to save the output CSV file.")
     parser.add_argument("--neg_type", type=str, choices=["shuffle", "random"], required=False, default="shuffle")
     parser.add_argument("--species", type=str, choices=["Si", "At"], required=False,  default="At", help="Species type: Si or At")
+    parser.add_argument("--dataset", type=str, choices=["Josey", "Ronan"], required=True, help="Origin of Dataset")
     parser.add_argument("--sliding_window", type=int, required=False, default=200)
     return parser.parse_args()
-
 
 def convert_to_N(sequence):
     substitutions = {'W': 'N', 'S': 'N', 'K': 'N', 'Y': 'N', 'R': 'N', 'M': 'N', 'B': 'N', 'D': 'N', 'H': 'N', 'V': 'N'}
@@ -39,7 +39,7 @@ def process_chrom_id(chrom, species):
     if species == "Si":
         return f"lcl|{chrom}"
     elif species == "At":
-        return chrom.replace("Chr", "")
+        return chrom.replace("Chr", "").replace("chr", "")
     return chrom
 
 def load_fasta_sequences(fasta_file):
@@ -122,6 +122,7 @@ def main():
     data = pd.DataFrame({
         "species": [args.species] * (len(positive_samples) + len(negative_samples)),
         "chromosomeId": [chrom for _, chrom in positive_samples + negative_samples],
+        'dataset': [args.dataset] * (len(positive_samples) + len(negative_samples)),
         "sequence": [seq for seq, _ in positive_samples + negative_samples],
         "label": [1] * len(positive_samples) + [0] * len(negative_samples)
     })
