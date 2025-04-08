@@ -2,3 +2,9 @@ TFBS/inputs/
 TFBS/outputs/
 TFBS/models/
 TFBS/code/checkpoints
+/.idea/deployment.xml
+/.idea/HyenaDNA.iml
+/.idea/misc.xml
+/.idea/inspectionProfiles/profiles_settings.xml
+/.idea/vcs.xml
+/.idea/workspace.xml
