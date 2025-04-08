@@ -19,7 +19,7 @@ def plot_loss(param_combinations, train_loss_per_param, val_loss_per_param, plot
 def plot_auroc_auprc(type, param_combinations, values, plot_dir, name):
     plt.figure(figsize=(8, 6))
     for i, param in enumerate(param_combinations):
-        plt.plot(values[i], label=f'{type} ({param})', marker='-')
+        plt.plot(values[i], label=f'{type} ({param})', linestyle=':')
     plt.xlabel('Epochs')
     plt.ylabel(type)
     plt.title(f'{type} for Different Parameter Combinations')
