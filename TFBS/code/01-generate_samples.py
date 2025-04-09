@@ -23,6 +23,9 @@ def parse_arguments():
     parser.add_argument("--species", type=str, choices=["Si", "At"], required=False,  default="At", help="Species type: Si or At")
     parser.add_argument("--dataset", type=str, choices=["Josey", "Ronan"], required=True, help="Origin of Dataset")
     parser.add_argument("--sliding_window", type=int, required=False, default=200)
+    parser.add_argument("--fixed_length", type=int, required=False, default=None,
+                        help="generates samples of fixed_length, ignoring sliding_window;"
+                             "if set to None, would use sliding_window and length would vary based on original length of peak")
     return parser.parse_args()
 
 def convert_to_N(sequence):
@@ -47,25 +50,49 @@ def load_fasta_sequences(fasta_file):
     return fasta_sequences
 
 
-def generate_positive_samples(peaks_df, fasta_sequences, species, sliding_window):
+def generate_positive_samples(peaks_df, fasta_sequences, species, sliding_window, fixed_length):
     positive_samples = []
     not_found = 0
+
     for ind, row in peaks_df.iterrows():
         # get sequence coordinates
         chrom_id = process_chrom_id(row["ChrID"], species)
 
         start = row["start"]
         end = row["end"]
-        # print(chrom_id)
-        # print(start)
-        # print(end)
-        # input()
+        peak_region_length = end - start + 1
+
+        # calculate required padding to reach fixed_length if fixed_length is not 0
+        if fixed_length is not None:
+            if peak_region_length > fixed_length:
+                raise ValueError(
+                    f'index {ind + 1}: peak_region_length ({peak_region_length}) is larger than fixed_length ({fixed_length})')
+
+            total_padding = fixed_length - peak_region_length
+            left_pad = total_padding // 2
+            right_pad = total_padding - left_pad
+        else: # use sliding_window
+            left_pad = sliding_window // 2
+            right_pad = sliding_window - left_pad
         
         if chrom_id in fasta_sequences:
             full_sequence = fasta_sequences[str(chrom_id)].seq
+
+            # Extract sequence with appropriate padding
+            sequence_start = max(0, start - left_pad)
+            sequence_end = min(len(full_sequence), end + right_pad)
+            sequence = full_sequence[sequence_start:sequence_end]
+
+            # if fixed_length and couldn't get enough padding on one side, try to get more from the other side
+            if fixed_length is not None and len(sequence) < fixed_length:
+                missing = fixed_length - len(sequence)
+                if sequence_start == 0:  # Couldn't get more on left, try right
+                    sequence_end = min(len(full_sequence), end + right_pad + missing)
+                else:  # Couldn't get more on right, try left
+                    sequence_start = max(0, start - left_pad - missing)
+                sequence = full_sequence[sequence_start:sequence_end]
             
-            # change all non-valid nuclotides to N
-            sequence = full_sequence[max(0, start-sliding_window//2):min(len(full_sequence), end+sliding_window//2)]
+            # change all non-valid nucleotides to N
             sequence = convert_to_N(sequence)
 
             if all_N(sequence):
@@ -79,7 +106,7 @@ def generate_positive_samples(peaks_df, fasta_sequences, species, sliding_window
     if not_found == 0:
         print("all rows in peak file has been found in fasta file...")
     else:
-        print(f"sequence regarding to {not_found} / {len(peaks_df)} rows has not beed found in fasta file...")
+        print(f"sequence regarding to {not_found} / {len(peaks_df)} rows has not been found in fasta file...")
 
     return positive_samples
 
@@ -111,7 +138,8 @@ def main():
 
     # Generate positive and negative samples
     print("Generating positive samples...")
-    positive_samples = generate_positive_samples(peaks_df, fasta_sequences, args.species, args.sliding_window)
+    positive_samples = generate_positive_samples(peaks_df, fasta_sequences, args.species,
+                                                 args.sliding_window, args.fixed_length)
     print(f"number of positive samples: {len(positive_samples)}")
 
     print("Generating negative samples...")
