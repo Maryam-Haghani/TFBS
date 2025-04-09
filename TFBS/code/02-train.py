@@ -11,14 +11,14 @@ from utils import load_config, get_file_name, serialize_dict, serialize_array
 from visualization import plot_loss, plot_auroc_auprc
 from hyena_dna import HyenaDNAModel
 
-from utils import extract_single_value, extract_value_as_list
+from utils import extract_single_value
 
 from logger import CustomLogger
 
 
 # python 02-train.py --config_file "../configs/standard_config.yml"
 # python 02-train.py  --config_file "../configs/standard_cross-species_config.yml"
-# python 02-train.py  --config_file "../configs/standard_cross-dataset-Ronan_Josey-config.yml"
+# python 02-train.py  --config_file "../configs/standard_cross-dataset-Ronan_Josey-201-config.yml"
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -26,55 +26,21 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def get_unique(df):
-    print(f'number of original rows: {len(df)}')
-    subset = ['chromosomeId', 'sequence']
-    redundant_df = df[df.duplicated(subset=subset, keep=False)]
-    print(f'number of redundant rows for {subset}: {len(redundant_df)}')
-
-    redundant_df = df[df.duplicated(subset=subset)]
-    print(f'number of removing redundant rows for {subset}: {len(redundant_df)}')
-
-    unique_df = df.loc[~df.duplicated(subset=subset, keep='first')]
-    print(f'number of unique rows for {subset}: {len(unique_df)}')
-    return unique_df
-
-def read_dataset(dataset_paths):
-    dfs = []
-
-    dataset_paths = extract_value_as_list(dataset_paths)
-    print(dataset_paths)
-
-    # Iterate through each file path and read the CSV into a DataFrame
-    for path in dataset_paths:
-        df = pd.read_csv(path)
-        dfs.append(df)
-
-    # Concatenate all DataFrames into one
-    df = pd.concat(dfs, ignore_index=True)
-
-    df['sequence'] = df['sequence'].str.upper()
-    # randomly rearrange the rows of df (shuffle rows)
-    random_state = 1972934
-    df = df.sample(frac=1, random_state=random_state).reset_index(drop=True)
-    return df
-
 if __name__ == "__main__":
 
     args = parse_arguments()
 
     # Load the configuration
     config = load_config(args.config_file)
-    print(f"Configuration loaded: {config}")
+
+    logger = CustomLogger(__name__, log_directory=config.paths.log_dir,
+                          log_file = f'log_{get_file_name(args.config_file)}')
+
+    logger.log_message(f"Configuration loaded: {config}")
 
     device = "cuda" if torch.cuda.is_available() and config.device == "cuda" else "cpu"
     config.device = device
-    print("Using device:", config.device)
-
-    # Extract sections from the config
-    paths = config.paths
-
-    df = get_unique(read_dataset(config.paths.dataset_path))
+    logger.log_message("Using device:", config.device)
 
     model_dir = os.path.join(config.paths.model_dir, config.model.pretrained_model_name, config.dataset_split.split_type)
     os.makedirs(model_dir, exist_ok=True)
@@ -86,11 +52,9 @@ if __name__ == "__main__":
     test_result_dir = os.path.join(config.paths.test_result_dir, config.model.pretrained_model_name, config.dataset_split.split_type)
     os.makedirs(test_result_dir, exist_ok=True)
 
-    logger = CustomLogger(__name__, log_directory=config.paths.log_dir, log_file = f'log_{get_file_name(args.config_file)}')
-
-    data_split = DataSplit(logger, df, config.paths.dataset_split_path, config.dataset_split.split_type,
-                           config.dataset_split.train_size, config.dataset_split.random_state)
-    df_train, df_val, df_test = data_split.split(config.dataset_split.id_column, config.dataset_split.train_ids,
+    data_split = DataSplit(logger, config.paths.dataset_path, config.paths.dataset_split_path, config.dataset_split.split_type,
+                           config.dataset_split.train_size, config.dataset_split.train_ids, config.dataset_split.random_state)
+    df_train, df_val, df_test = data_split.split(config.dataset_split.id_column,
                                                  config.dataset_split.val_ids, config.dataset_split.test_ids)
 
     tokenizer = HyenaDNAModel.get_tokenizer(config.model.model_max_length)
@@ -143,23 +107,29 @@ if __name__ == "__main__":
             ft.model = HyenaDNAModel(logger, pretrained_model_name=config.model.pretrained_model_name,
                                      use_head=True, device=config.device).load_pretrained_model()
 
-            model, trainable_params, train_losses, val_losses, auroc_per_epoch, auprc_per_epoch = (
-                ft.finetune(ds_train, ds_val))
+            (model, trainable_params, best_epoch, train_losses, acc_per_epoch,
+             val_losses, auroc_per_epoch, auprc_per_epoch) = ft.finetune(ds_train, ds_val)
+
             train_loss_per_param.append(train_losses)
             val_loss_per_param.append(val_losses)
             auroc_per_param.append(auroc_per_epoch)
             auprc_per_param.append(auprc_per_epoch)
             
-            test_accuracy, auroc, auprc = ft.test(ds_test, test_result_dir)
+            test_accuracy, test_auroc, test_auprc = ft.test(ds_test, test_result_dir)
             results.append({
                         'batch_size': batch_size,
                         'learning_rate': learning_rate,
                         'weight_decay': weight_decay,
                         'freeze_layer': freeze_layer,
                         'trainable_params': trainable_params,
-                        'accuracy': test_accuracy,
-                        'auroc': auroc,
-                        'auprc': auprc
+                        'best_train_loss': train_losses[best_epoch],
+                        'best_val_losses' : val_losses[best_epoch],
+                        'best_val_acc' : acc_per_epoch[best_epoch],
+                        'best_val_auroc': auroc_per_epoch[best_epoch],
+                        'best_val_auprc': auprc_per_epoch[best_epoch],
+                        'test_accuracy': test_accuracy,
+                        'test_auroc': test_auroc,
+                        'test_auprc': test_auprc
                     })
             
         config_name = get_file_name(args.config_file)
