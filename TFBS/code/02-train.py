@@ -122,14 +122,14 @@ if __name__ == "__main__":
                         'weight_decay': weight_decay,
                         'freeze_layer': freeze_layer,
                         'trainable_params': trainable_params,
-                        'best_train_loss': train_losses[best_epoch],
-                        'best_val_losses' : val_losses[best_epoch],
-                        'best_val_acc' : acc_per_epoch[best_epoch],
-                        'best_val_auroc': auroc_per_epoch[best_epoch],
-                        'best_val_auprc': auprc_per_epoch[best_epoch],
-                        'test_accuracy': test_accuracy,
-                        'test_auroc': test_auroc,
-                        'test_auprc': test_auprc
+                        'best_train_loss': round(train_losses[best_epoch], 2),
+                        'best_val_losses' : round(val_losses[best_epoch], 2),
+                        'best_val_acc' : round(acc_per_epoch[best_epoch], 2),
+                        'best_val_auroc': round(auroc_per_epoch[best_epoch], 2),
+                        'best_val_auprc': round(auprc_per_epoch[best_epoch], 2),
+                        'test_accuracy': round(test_accuracy, 2),
+                        'test_auroc': round(test_auroc, 2),
+                        'test_auprc': round(test_auprc, 2)
                     })
             
         config_name = get_file_name(args.config_file)

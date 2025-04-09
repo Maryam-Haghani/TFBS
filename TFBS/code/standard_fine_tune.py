@@ -88,10 +88,10 @@ class FineTune:
                     for seq, true_label, pred_label, prob in zip(sequence, true_labels, pred_labels, probs):
                         results.append({'sequence': seq,
                                         'true_label': true_label.item(),
-                                        'probability':  prob.cpu().numpy(),
+                                        'probability':  np.round(prob.cpu().numpy(), 2),
                                         'predicted_label': pred_label.item(),
-                                        'prediction_probability': prob[pred_label.item()].item(),
-                                        'positive_probability': prob[1].item()
+                                        'prediction_probability': round(prob[pred_label.item()].item(), 2),
+                                        'positive_probability': round(prob[1].item(), 2)
                                          })
 
         # flatten the lists
