@@ -171,6 +171,7 @@ class FineTune:
         val_losses = []
         auroc_per_epoch = []
         auprc_per_epoch = []
+        acc_per_epoch = []
 
         early_stopping = EarlyStopping(
             patience=self.training.early_stopping.patience,
@@ -183,12 +184,13 @@ class FineTune:
             self.logger.log_message(f'Epoch {epoch+1}/{self.training.num_epochs}')
 
             train_loss = self._train(train_loader, optimizer, epoch, loss_fn)
-            _, auroc, auprc, val_loss = self._test(val_loader, loss_fn=loss_fn)
+            acc, auroc, auprc, val_loss = self._test(val_loader, loss_fn=loss_fn)
 
             train_losses.append(train_loss)
             val_losses.append(val_loss)
             auroc_per_epoch.append(auroc)
             auprc_per_epoch.append(auprc)
+            acc_per_epoch.append(acc)
 
             # check early stopping criteria
             early_stopping(val_loss, self.model, epoch)
@@ -197,24 +199,22 @@ class FineTune:
                 break
 
         if early_stopping.early_stop:
-            best_epoch = early_stopping.best_epoch + 1  # converting 0-indexed to 1-indexed
+            best_epoch = early_stopping.best_epoch
         else:
-            best_epoch = self.training.num_epochs
-            best_epoch = self.training.num_epochs
-            
-            
+            best_epoch = self.training.num_epochs -1
+
         # reload the best model weights saved during training
         if early_stopping.best_model_state is not None:
             self.model.load_state_dict(early_stopping.best_model_state)
-            self.logger.log_message(f"Loaded best model weights from epoch {best_epoch}.")
+            self.logger.log_message(f"Loaded best model weights from epoch {best_epoch+1}.") # converting 0-indexed to 1-indexed
 
             # save the model
             model_path = os.path.join(self.model_dir, f'{self.model_name}.pt')
             torch.save(self.model.state_dict(), model_path)
             self.logger.log_message(f"Best model saved as: {model_path}")
 
-        return (self.model.to(self.device), f'{trainable_params} / {total_params}', train_losses,
-                val_losses, auroc_per_epoch, auprc_per_epoch)
+        return (self.model.to(self.device), f'{trainable_params} / {total_params}', best_epoch, train_losses,
+                acc_per_epoch, val_losses, auroc_per_epoch, auprc_per_epoch)
 
     # load the saved parameters to the model
     def load(self, finetuned_model_name):
