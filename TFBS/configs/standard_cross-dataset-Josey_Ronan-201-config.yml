@@ -1,12 +1,10 @@
 # standard_config.yml
 
 paths:
-  dataset_path: ["../inputs/Ronan-AtABF2_training_shuffle_neg_stride_200.csv", "../inputs/Josey-AtABF2_training_shuffle_neg_stride_200.csv"]
-  dataset_split_path: "../inputs/data_splits/AtABF2_Josey-training_Ronan-test_shuffle_neg_stride_200"
-  model_dir: "../models/AtABF2_Josey-training_Ronan-test/standard"
-  test_result_dir: "../outputs/AtABF2_Josey-training_Ronan-test/standard/test_results"
-  plot_dir: "../outputs/AtABF2_Josey-training_Ronan-test/standard/plots"
-  log_dir: "../outputs/logs"
+  dataset_path: ["../inputs/Ronan-AtABF2_training_shuffle_neg_stride_201.csv", "../inputs/Josey-AtABF2_training_shuffle_neg_stride_201.csv"]
+  dataset_split_path: "../inputs/data_splits/AtABF2_Josey-training_Ronan-test_shuffle_neg_stride_201"
+  model_dir: "../models/AtABF2_Josey-training_Ronan-test-201/standard"
+  test_result_dir: "../outputs/AtABF2_Josey-training_Ronan-test-201/standard"
   
 dataset_split:
   split_type: "cross_id"  # Options: 'random' or 'cross_id'
@@ -53,3 +51,11 @@ training:
   # 'backbone.layers.[i]': Freezes a specific transformer block.
   # 'backbone'           : Freezes the entire backbone (embeddings + all transformer layers).
   # 'head'               : Freezes the output classification head.
+
+wandb:
+  enabled: True
+  token: 'dc3d431c0afb735d9ac046c72f076bf1f7656472'
+  project_name: 'HyenaDNA-CrossSpecies'
+  entity_name: 'haghani-vt'
+  timezone: 'US/Eastern'
+  timezone_format: '%Y-%m-%d_%H-%M-%S'

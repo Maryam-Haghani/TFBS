@@ -3,22 +3,33 @@ import pandas as pd
 import os
 from itertools import product
 import argparse
+import pytz
+from datetime import datetime
+import wandb
 
 from standard_fine_tune import FineTune
 from dna_dataset import DNADataset
 from data_split import DataSplit
-from utils import load_config, get_file_name, serialize_dict, serialize_array
-from visualization import plot_loss, plot_auroc_auprc
+from utils import load_config, get_file_name, serialize_dict, serialize_array, extract_single_value
 from hyena_dna import HyenaDNAModel
-
-from utils import extract_single_value
-
 from logger import CustomLogger
 
 
 # python 02-train.py --config_file "../configs/standard_config.yml"
 # python 02-train.py  --config_file "../configs/standard_cross-species_config.yml"
 # python 02-train.py  --config_file "../configs/standard_cross-dataset-Ronan_Josey-201-config.yml"
+
+def _init_wandb(wandb_params, model, name):
+    try:
+        wandb.login(key=wandb_params.token)
+
+        eastern = pytz.timezone(wandb_params.timezone)
+        wandb.init(project=wandb_params.project_name, entity=wandb_params.entity_name,
+                   name=f"run-{name}-{datetime.now(eastern).strftime(wandb_params.timezone_format)}")
+        wandb.watch(model, log="all")
+    except Exception as e:
+        logger.log_message(f"Error initializing Wandb: {e}")
+        raise
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -29,25 +40,17 @@ def parse_arguments():
 if __name__ == "__main__":
 
     args = parse_arguments()
-
-    # Load the configuration
     config = load_config(args.config_file)
-
-    logger = CustomLogger(__name__, log_directory=config.paths.log_dir,
+    logger = CustomLogger(__name__, log_directory=config.paths.test_result_dir,
                           log_file = f'log_{get_file_name(args.config_file)}')
 
     logger.log_message(f"Configuration loaded: {config}")
 
-    device = "cuda" if torch.cuda.is_available() and config.device == "cuda" else "cpu"
-    config.device = device
+    config.device = "cuda" if torch.cuda.is_available() and config.device == "cuda" else "cpu"
     logger.log_message("Using device:", config.device)
 
     model_dir = os.path.join(config.paths.model_dir, config.model.pretrained_model_name, config.dataset_split.split_type)
     os.makedirs(model_dir, exist_ok=True)
-    os.makedirs(model_dir, exist_ok=True)
-
-    plot_dir = os.path.join(config.paths.plot_dir, config.model.pretrained_model_name, config.dataset_split.split_type)
-    os.makedirs(plot_dir, exist_ok=True)
 
     test_result_dir = os.path.join(config.paths.test_result_dir, config.model.pretrained_model_name, config.dataset_split.split_type)
     os.makedirs(test_result_dir, exist_ok=True)
@@ -82,11 +85,6 @@ if __name__ == "__main__":
         logger.log_message(f'There are {len(grid_combinations)} combination of parameters...')
 
         results = []
-        param_combinations = []
-        train_loss_per_param = []
-        val_loss_per_param = []
-        auroc_per_param = []
-        auprc_per_param = []
         
         # finetune based on each combination
         for batch_size, learning_rate, weight_decay, freeze_layer in grid_combinations:
@@ -100,47 +98,45 @@ if __name__ == "__main__":
             config.training.model_params.weight_decay = weight_decay
             config.training.freeze_layers = freeze_layer
 
-            param_combinations.append(
-                f'{serialize_dict(config.training.model_params)}_freeze_layer-{serialize_array(config.training.freeze_layers)}')
+
+            model_name = (f'fine-tuned_model_{serialize_dict(config.training.model_params)}'
+                               f'_freeze_layer-{serialize_array(freeze_layer)}')
 
             # Reload the pretrained model fresh each time for the current combination
             ft.model = HyenaDNAModel(logger, pretrained_model_name=config.model.pretrained_model_name,
                                      use_head=True, device=config.device).load_pretrained_model()
 
-            (model, trainable_params, best_epoch, train_losses, acc_per_epoch,
-             val_losses, auroc_per_epoch, auprc_per_epoch) = ft.finetune(ds_train, ds_val)
+            if config.wandb.enabled:  # visualization with wandb
+                _init_wandb(config.wandb, ft.model, model_name)
 
-            train_loss_per_param.append(train_losses)
-            val_loss_per_param.append(val_losses)
-            auroc_per_param.append(auroc_per_epoch)
-            auprc_per_param.append(auprc_per_epoch)
-            
-            test_accuracy, test_auroc, test_auprc = ft.test(ds_test, test_result_dir)
+
+            trainable_params, best_epoch, last_val_acc, last_val_auroc, last_val_auprc\
+                = ft.finetune(ds_train, ds_val, model_name, wandb)
+            test_accuracy, test_auroc, test_auprc = ft.test(ds_test, model_name, test_result_dir)
+
             results.append({
                         'batch_size': batch_size,
                         'learning_rate': learning_rate,
                         'weight_decay': weight_decay,
                         'freeze_layer': freeze_layer,
                         'trainable_params': trainable_params,
-                        'best_train_loss': round(train_losses[best_epoch], 2),
-                        'best_val_losses' : round(val_losses[best_epoch], 2),
-                        'best_val_acc' : round(acc_per_epoch[best_epoch], 2),
-                        'best_val_auroc': round(auroc_per_epoch[best_epoch], 2),
-                        'best_val_auprc': round(auprc_per_epoch[best_epoch], 2),
+                        'best_epoch' : best_epoch,
+                        'last_val_acc' : round(last_val_acc, 2),
+                        'last_val_auroc': round(last_val_auroc, 2),
+                        'last_val_auprc': round(last_val_auprc, 2),
                         'test_accuracy': round(test_accuracy, 2),
                         'test_auroc': round(test_auroc, 2),
                         'test_auprc': round(test_auprc, 2)
                     })
+
+            if config.wandb.enabled:
+                wandb.finish()
             
         config_name = get_file_name(args.config_file)
 
-        # plot validation metrics for each epoch
-        plot_loss(param_combinations, train_loss_per_param, val_loss_per_param, plot_dir, f'loss_{config_name}.pdf')
-        plot_auroc_auprc('AUROC', param_combinations, auroc_per_param, plot_dir, config_name)
-        plot_auroc_auprc('AUPRC', param_combinations, auprc_per_param, plot_dir, config_name)
-
         # get metrics for test set
         df_results = pd.DataFrame(results)
-        results_csv_path = f'../outputs/hyper_params_{get_file_name(args.config_file)}.csv'
+        results_csv_path = os.path.join(config.paths.test_result_dir,
+                                        f'hyper_params_{get_file_name(args.config_file)}.csv')
         df_results.to_csv(results_csv_path, index=False)
         logger.log_message(f"Grid search results saved to {results_csv_path}", use_time=True)

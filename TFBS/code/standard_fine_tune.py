@@ -57,7 +57,7 @@ class FineTune:
 
         return avg_train_loss
 
-    def _test(self, test_loader, loss_fn=None, test_result_dir=None):
+    def _test(self, test_loader, model_name, loss_fn=None, test_result_dir=None):
         self.model.eval()
         test_loss = 0
         correct = 0
@@ -115,34 +115,31 @@ class FineTune:
             self.logger.log_message(f'\nValidation loss: {avg_test_loss:.4f}\n')
             return accuracy, auroc, auprc, avg_test_loss
         else: # save test results
-            test_result_path = os.path.join(test_result_dir, f'{self.model_name}.csv')
+            test_result_path = os.path.join(test_result_dir, f'{model_name}.csv')
             df = pd.DataFrame(results)
             df.to_csv(test_result_path, index=False)
             self.logger.log_message(f'Test results saved to {test_result_path}')
 
             plot_roc_pr('ROC', all_labels, all_pos_probs,'False Positive Rate',
-                        'True Positive Rate', test_result_dir, self.model_name)
+                        'True Positive Rate', test_result_dir, model_name)
             plot_roc_pr('PR', all_labels, all_pos_probs, 'Recall',
-                        'Precision', test_result_dir, self.model_name)
+                        'Precision', test_result_dir, model_name)
 
             return accuracy, auroc, auprc
 
     # compute metrics for test dataset
-    def test(self, ds_test, test_result_dir):
+    def test(self, ds_test, model_name, test_result_dir):
         self.logger.log_message("Getting test set accuracy...")
 
         test_loader = DataLoader(ds_test, batch_size=self.training.model_params.batch_size, shuffle=True)
-        acc, auroc, auprc = self._test(test_loader, test_result_dir=test_result_dir)
+        acc, auroc, auprc = self._test(test_loader, model_name, test_result_dir=test_result_dir)
         return acc, auroc, auprc
 
     # finetune the model based on the given dataset
-    def finetune(self, ds_train, ds_val):
+    def finetune(self, ds_train, ds_val, model_name, wandb):
         self._freeze_layers()
 
-        self.model_name = (f'fine-tuned_model_{serialize_dict(self.training.model_params)}'
-                           f'_freeze_layer-{serialize_array(self.training.freeze_layers)}')
-
-        self.logger.log_message(f'model name: {self.model_name}')
+        self.logger.log_message(f'model name: {model_name}')
 
         # total number of parameters
         total_params = sum(p.numel() for p in self.model.parameters())
@@ -167,11 +164,6 @@ class FineTune:
 
         self.model.to(self.device)
 
-        train_losses = []
-        val_losses = []
-        auroc_per_epoch = []
-        auprc_per_epoch = []
-        acc_per_epoch = []
 
         early_stopping = EarlyStopping(
             patience=self.training.early_stopping.patience,
@@ -184,13 +176,9 @@ class FineTune:
             self.logger.log_message(f'Epoch {epoch+1}/{self.training.num_epochs}')
 
             train_loss = self._train(train_loader, optimizer, epoch, loss_fn)
-            acc, auroc, auprc, val_loss = self._test(val_loader, loss_fn=loss_fn)
-
-            train_losses.append(train_loss)
-            val_losses.append(val_loss)
-            auroc_per_epoch.append(auroc)
-            auprc_per_epoch.append(auprc)
-            acc_per_epoch.append(acc)
+            val_acc, val_auroc, val_auprc, val_loss = self._test(val_loader, model_name, loss_fn=loss_fn)
+            wandb.log({"epoch":epoch+1, "train loss": train_loss, "val loss": val_loss,
+                       "val AUROC": val_auroc, "val AUPRC": val_auprc, "val ACC": val_acc})
 
             # check early stopping criteria
             early_stopping(val_loss, self.model, epoch)
@@ -209,12 +197,11 @@ class FineTune:
             self.logger.log_message(f"Loaded best model weights from epoch {best_epoch+1}.") # converting 0-indexed to 1-indexed
 
             # save the model
-            model_path = os.path.join(self.model_dir, f'{self.model_name}.pt')
+            model_path = os.path.join(self.model_dir, f'{model_name}.pt')
             torch.save(self.model.state_dict(), model_path)
             self.logger.log_message(f"Best model saved as: {model_path}")
 
-        return (self.model.to(self.device), f'{trainable_params} / {total_params}', best_epoch, train_losses,
-                acc_per_epoch, val_losses, auroc_per_epoch, auprc_per_epoch)
+        return f'{trainable_params} / {total_params}', best_epoch+1, val_acc, val_auroc, val_auprc
 
     # load the saved parameters to the model
     def load(self, finetuned_model_name):

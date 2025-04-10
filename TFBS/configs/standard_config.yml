@@ -4,8 +4,7 @@ paths:
   dataset_path: "../inputs/AtABFs_training_shuffle_neg_stride_200.csv"
   dataset_split_path: "../inputs/data_splits/AtABFstraining_shuffle_neg_stride_200"
   model_dir: "../models/AtABFs/standard"
-  test_result_dir: "../outputs/AtABFs/standard/test_results"
-  loss_dir: "../outputs/AtABFs/standard/loss"
+  test_result_dir: "../outputs/AtABFs/standard"
   
 dataset_split:
   split_type: "random"       # Options: 'random' or 'cross_id'
@@ -51,4 +50,12 @@ training:
   # 'backbone.layers'    : Freezes all transformer blocks.
   # 'backbone.layers.[i]': Freezes a specific transformer block.
   # 'backbone'           : Freezes the entire backbone (embeddings + all transformer layers).
-  # 'head'               : Freezes the output classification head.#  'fine_tuned_hyena_hyenadna-tiny-1k-seqlen_random_0.7_0.15_0.15_epoch_6.pt'
+  # 'head'               : Freezes the output classification head.
+
+wandb:
+  enabled: True
+  token: 'dc3d431c0afb735d9ac046c72f076bf1f7656472'
+  project_name: 'HyenaDNA-CrossSpecies'
+  entity_name: 'haghani-vt'
+  timezone: 'US/Eastern'
+  timezone_format: '%Y-%m-%d_%H-%M-%S'
