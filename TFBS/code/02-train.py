@@ -49,33 +49,32 @@ if __name__ == "__main__":
     config.device = "cuda" if torch.cuda.is_available() and config.device == "cuda" else "cpu"
     logger.log_message("Using device:", config.device)
 
-    model_dir = os.path.join(config.paths.model_dir, config.model.pretrained_model_name, config.dataset_split.split_type)
+    model_dir = os.path.join(config.paths.model_dir, config.model.pretrained_model_name,
+                             f"{config.dataset_split.test_split_type}-{config.dataset_split.val_split_type}")
     os.makedirs(model_dir, exist_ok=True)
 
-    test_result_dir = os.path.join(config.paths.test_result_dir, config.model.pretrained_model_name, config.dataset_split.split_type)
+    test_result_dir = os.path.join(config.paths.test_result_dir, "test_result",
+                                   config.model.pretrained_model_name,
+                                   f"{config.dataset_split.test_split_type}-{config.dataset_split.val_split_type}")
     os.makedirs(test_result_dir, exist_ok=True)
-
-    data_split = DataSplit(logger, config.paths.dataset_path, config.paths.dataset_split_path, config.dataset_split.split_type,
-                           config.dataset_split.train_size, config.dataset_split.train_ids, config.dataset_split.random_state)
-    df_train, df_val, df_test = data_split.split(config.dataset_split.id_column,
-                                                 config.dataset_split.val_ids, config.dataset_split.test_ids)
 
     tokenizer = HyenaDNAModel.get_tokenizer(config.model.model_max_length)
 
-    ds_train = DNADataset(df_train, tokenizer, config.model.model_max_length, config.model.use_padding)
-    ds_val = DNADataset(df_val, tokenizer, config.model.model_max_length, config.model.use_padding)
+    ft = FineTune(logger, config.device, model_dir, config.training)
+
+    dfs_train, dfs_val, df_test = DataSplit.split(logger, config.paths.dataset_path, config.paths.dataset_split_path,
+                                                config.dataset_split, label='label')
+
     ds_test = DNADataset(df_test, tokenizer, config.model.model_max_length, config.model.use_padding)
 
-    ft = FineTune(logger, config.device, model_dir, config.training)
 
     if config.model.use_saved_model:  # saved_finetuned_model_name should be present
         config.training.model_params.batch_size = extract_single_value(config.training.model_params.batch_size)
 
         model = ft.load(config.model.saved_finetuned_model_name)
-        test_accuracy = ft.test(ds_test, test_result_dir)
+        test_accuracy, test_auroc, test_auprc = ft.test(ds_test, config.model.saved_finetuned_model_name, test_result_dir)
 
     else:
-
         grid_combinations = list(product(config.training.model_params.batch_size,
                                          config.training.model_params.learning_rate,
                                          config.training.model_params.weight_decay,
@@ -98,39 +97,45 @@ if __name__ == "__main__":
             config.training.model_params.weight_decay = weight_decay
             config.training.freeze_layers = freeze_layer
 
+            # for each fold
+            for fold in range(1, config.dataset_split.fold + 1):
+                logger.log_message(f'**** Fold {fold}')
 
-            model_name = (f'fine-tuned_model_{serialize_dict(config.training.model_params)}'
-                               f'_freeze_layer-{serialize_array(freeze_layer)}')
+                model_name = (f'fold-{fold}_{serialize_dict(config.training.model_params)}'
+                                   f'_freeze_layer-{serialize_array(freeze_layer)}')
 
-            # Reload the pretrained model fresh each time for the current combination
-            ft.model = HyenaDNAModel(logger, pretrained_model_name=config.model.pretrained_model_name,
-                                     use_head=True, device=config.device).load_pretrained_model()
+                # Reload the pretrained model fresh each time for the current combination
+                ft.model = HyenaDNAModel(logger, pretrained_model_name=config.model.pretrained_model_name,
+                                         use_head=True, device=config.device).load_pretrained_model()
 
-            if config.wandb.enabled:  # visualization with wandb
-                _init_wandb(config.wandb, ft.model, model_name)
+                if config.wandb.enabled:  # visualization with wandb
+                    _init_wandb(config.wandb, ft.model, model_name)
 
+                ds_train = DNADataset(dfs_train[fold-1], tokenizer, config.model.model_max_length, config.model.use_padding)
+                ds_val = DNADataset(dfs_val[fold-1], tokenizer, config.model.model_max_length, config.model.use_padding)
 
-            trainable_params, best_epoch, last_val_acc, last_val_auroc, last_val_auprc\
-                = ft.finetune(ds_train, ds_val, model_name, wandb)
-            test_accuracy, test_auroc, test_auprc = ft.test(ds_test, model_name, test_result_dir)
+                trainable_params, best_epoch, last_val_acc, last_val_auroc, last_val_auprc\
+                    = ft.finetune(ds_train, ds_val, model_name, wandb)
+                test_accuracy, test_auroc, test_auprc = ft.test(ds_test, model_name, test_result_dir)
 
-            results.append({
-                        'batch_size': batch_size,
-                        'learning_rate': learning_rate,
-                        'weight_decay': weight_decay,
-                        'freeze_layer': freeze_layer,
-                        'trainable_params': trainable_params,
-                        'best_epoch' : best_epoch,
-                        'last_val_acc' : round(last_val_acc, 2),
-                        'last_val_auroc': round(last_val_auroc, 2),
-                        'last_val_auprc': round(last_val_auprc, 2),
-                        'test_accuracy': round(test_accuracy, 2),
-                        'test_auroc': round(test_auroc, 2),
-                        'test_auprc': round(test_auprc, 2)
-                    })
+                results.append({
+                            'fold': fold,
+                            'batch_size': batch_size,
+                            'learning_rate': learning_rate,
+                            'weight_decay': weight_decay,
+                            'freeze_layer': freeze_layer,
+                            'trainable_params': trainable_params,
+                            'best_epoch' : best_epoch,
+                            'last_val_acc' : round(last_val_acc, 2),
+                            'last_val_auroc': round(last_val_auroc, 2),
+                            'last_val_auprc': round(last_val_auprc, 2),
+                            'test_accuracy': round(test_accuracy, 2),
+                            'test_auroc': round(test_auroc, 2),
+                            'test_auprc': round(test_auprc, 2)
+                        })
 
-            if config.wandb.enabled:
-                wandb.finish()
+                if config.wandb.enabled:
+                    wandb.finish()
             
         config_name = get_file_name(args.config_file)
 

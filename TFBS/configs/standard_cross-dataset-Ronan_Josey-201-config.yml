@@ -7,12 +7,14 @@ paths:
   test_result_dir: "../outputs/AtABF2_Ronan-training_Josey-test-201/standard"
   
 dataset_split:
-  split_type: "cross_id"  # Options: 'random' or 'cross_id'
+  test_split_type: "cross"  # Options: 'random' or 'cross'
+  val_split_type: "n-fold" # 'cross', 'n-fold': can be 'cross' when test_split_type is 'cross', as well
   id_column: "dataset"
-  train_ids: ["Ronan"]
-  val_ids: "random" # random (which will be used to randomly split training to train and val) or a specific id
-  test_ids: ["Josey"]
-  train_size: 0.8
+  train_ids: ["Ronan"] # should be assigned for 'cross' test_split_type
+  val_ids: [] # should be assigned for 'cross' val_split_type
+  test_ids: ["Josey"] # should be assigned for 'cross_ test_split_type
+  test_size: 0.2 # should be assigned for 'random' test_split_type
+  fold: 5 # should be > 1 for 'n-fold' val_split_type, else 1
   random_state: 436346
   
 model:
