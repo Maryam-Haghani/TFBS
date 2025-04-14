@@ -19,7 +19,7 @@ class HyenaDNAModel:
         model = HyenaDNAPreTrainedModel.from_pretrained(
             "../models/checkpoints",
             self.pretrained_model_name,
-            download=False,
+            download=True,
             device=self.device,
             use_head=self.use_head,  # set to False to output embeddings, not classification
             n_classes=2

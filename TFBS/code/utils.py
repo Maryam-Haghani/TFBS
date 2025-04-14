@@ -1,4 +1,3 @@
-import os
 import yaml
 from types import SimpleNamespace
 import types
@@ -14,7 +13,7 @@ def serialize_array(array):
     Returns:
         str: The serialized array as a string with its name.
     """
-    # Convert the array into a comma-separated string
+    # convert the array into a comma-separated string
     array_str = "_".join([str(item) for item in array])
     return array_str
 
@@ -69,9 +68,5 @@ def extract_single_value(value):
     elif not isinstance(value, (int, float)):
         raise TypeError("must be a number or a list with one element")
     return value
-
-def get_file_name(file_path):
-    filename_without_extension = os.path.splitext(os.path.basename(file_path))[0]
-    return filename_without_extension
 
 

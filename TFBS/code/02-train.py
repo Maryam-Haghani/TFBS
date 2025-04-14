@@ -10,22 +10,20 @@ import wandb
 from standard_fine_tune import FineTune
 from dna_dataset import DNADataset
 from data_split import DataSplit
-from utils import load_config, get_file_name, serialize_dict, serialize_array, extract_single_value
+from utils import load_config, serialize_dict, serialize_array, extract_single_value
 from hyena_dna import HyenaDNAModel
 from logger import CustomLogger
 
 
 # python 02-train.py --config_file "../configs/standard_config.yml"
-# python 02-train.py  --config_file "../configs/standard_cross-species_config.yml"
-# python 02-train.py  --config_file "../configs/standard_cross-dataset-Ronan_Josey-201-config.yml"
 
-def _init_wandb(wandb_params, model, name):
+def _init_wandb(wandb_params, model, project_name, run_name):
     try:
         wandb.login(key=wandb_params.token)
 
         eastern = pytz.timezone(wandb_params.timezone)
-        wandb.init(project=wandb_params.project_name, entity=wandb_params.entity_name,
-                   name=f"run-{name}-{datetime.now(eastern).strftime(wandb_params.timezone_format)}")
+        wandb.init(project=project_name, entity=wandb_params.entity_name,
+                   name=f"{run_name}-{datetime.now(eastern).strftime(wandb_params.timezone_format)}")
         wandb.watch(model, log="all")
     except Exception as e:
         logger.log_message(f"Error initializing Wandb: {e}")
@@ -41,31 +39,34 @@ if __name__ == "__main__":
 
     args = parse_arguments()
     config = load_config(args.config_file)
-    logger = CustomLogger(__name__, log_directory=config.paths.test_result_dir,
-                          log_file = f'log_{get_file_name(args.config_file)}')
+    output_dir = os.path.join(config.output_dir, config.model.pretrained_model_name,
+                              'standard', config.name, config.dataset_split.partition_mode)
+    os.makedirs(output_dir, exist_ok=True)
+
+    logger = CustomLogger(__name__, log_directory=output_dir, log_file = f'log')
 
     logger.log_message(f"Configuration loaded: {config}")
 
     config.device = "cuda" if torch.cuda.is_available() and config.device == "cuda" else "cpu"
     logger.log_message("Using device:", config.device)
 
-    model_dir = os.path.join(config.paths.model_dir, config.model.pretrained_model_name,
-                             f"{config.dataset_split.test_split_type}-{config.dataset_split.val_split_type}")
+    model_dir = os.path.join(output_dir, "models")
     os.makedirs(model_dir, exist_ok=True)
 
-    test_result_dir = os.path.join(config.paths.test_result_dir, "test_result",
-                                   config.model.pretrained_model_name,
-                                   f"{config.dataset_split.test_split_type}-{config.dataset_split.val_split_type}")
+    test_result_dir = os.path.join(output_dir, "test_results")
     os.makedirs(test_result_dir, exist_ok=True)
 
     tokenizer = HyenaDNAModel.get_tokenizer(config.model.model_max_length)
 
     ft = FineTune(logger, config.device, model_dir, config.training)
 
-    dfs_train, dfs_val, df_test = DataSplit.split(logger, config.paths.dataset_path, config.paths.dataset_split_path,
-                                                config.dataset_split, label='label')
+    dfs_train, dfs_val, df_test = DataSplit.split(logger, config.dataset_path,
+                                                  os.path.join(config.dataset_split.dir, config.name),
+                                                  config.dataset_split, label='label')
 
     ds_test = DNADataset(df_test, tokenizer, config.model.model_max_length, config.model.use_padding)
+
+    input("Exit!")
 
 
     if config.model.use_saved_model:  # saved_finetuned_model_name should be present
@@ -108,14 +109,16 @@ if __name__ == "__main__":
                 ft.model = HyenaDNAModel(logger, pretrained_model_name=config.model.pretrained_model_name,
                                          use_head=True, device=config.device).load_pretrained_model()
 
+                project_name = f"{config.model.pretrained_model_name}_{config.name}_{config.dataset_split.partition_mode}"
+
                 if config.wandb.enabled:  # visualization with wandb
-                    _init_wandb(config.wandb, ft.model, model_name)
+                    _init_wandb(config.wandb, ft.model, project_name, model_name)
 
                 ds_train = DNADataset(dfs_train[fold-1], tokenizer, config.model.model_max_length, config.model.use_padding)
                 ds_val = DNADataset(dfs_val[fold-1], tokenizer, config.model.model_max_length, config.model.use_padding)
 
                 trainable_params, best_epoch, last_val_acc, last_val_auroc, last_val_auprc\
-                    = ft.finetune(ds_train, ds_val, model_name, wandb)
+                    = ft.finetune(ds_train, ds_val, model_name, wandb, )
                 test_accuracy, test_auroc, test_auprc = ft.test(ds_test, model_name, test_result_dir)
 
                 results.append({
@@ -136,12 +139,9 @@ if __name__ == "__main__":
 
                 if config.wandb.enabled:
                     wandb.finish()
-            
-        config_name = get_file_name(args.config_file)
 
         # get metrics for test set
         df_results = pd.DataFrame(results)
-        results_csv_path = os.path.join(config.paths.test_result_dir,
-                                        f'hyper_params_{get_file_name(args.config_file)}.csv')
-        df_results.to_csv(results_csv_path, index=False)
-        logger.log_message(f"Grid search results saved to {results_csv_path}", use_time=True)
+        results_csv_file = os.path.join(output_dir, 'hyper_params.csv')
+        df_results.to_csv(results_csv_file, index=False)
+        logger.log_message(f"Grid search results saved to {results_csv_file}", use_time=True)

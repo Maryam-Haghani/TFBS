@@ -1,22 +1,24 @@
 # standard_config.yml
 
-paths:
-  dataset_path: ["../inputs/Ronan-AtABF2_training_shuffle_neg_stride_201.csv", "../inputs/Josey-AtABF2_training_shuffle_neg_stride_201.csv"]
-  dataset_split_path: "../inputs/data_splits/AtABF2_Ronan-training_Josey-test_shuffle_neg_stride_201"
-  model_dir: "../models/AtABF2_Ronan-training_Josey-test-201/standard"
-  test_result_dir: "../outputs/AtABF2_Ronan-training_Josey-test-201/standard"
+dataset_path: [ "../inputs/Ronan-AtABF2_training_shuffle_neg_stride_201.csv", "../inputs/Josey-AtABF2_training_shuffle_neg_stride_201.csv" ]
+output_dir: "../outputs"
+
+name: "AtABF2_cross_tr-Ronan_test-Josey"
   
 dataset_split:
+  dir: "../inputs/data_splits"
   test_split_type: "cross"  # Options: 'random' or 'cross'
-  val_split_type: "n-fold" # 'cross', 'n-fold': can be 'cross' when test_split_type is 'cross', as well
+  val_split_type: "n-fold" # Options: 'cross', 'n-fold' - can be 'cross' when test_split_type is 'cross', as well
   id_column: "dataset"
-  train_ids: ["Ronan"] # should be assigned for 'cross' test_split_type
-  val_ids: [] # should be assigned for 'cross' val_split_type
-  test_ids: ["Josey"] # should be assigned for 'cross_ test_split_type
-  test_size: 0.2 # should be assigned for 'random' test_split_type
-  fold: 5 # should be > 1 for 'n-fold' val_split_type, else 1
+  val_ids: [] # should be assigned for 'val_split_type'='cross'
+  test_ids: ["Josey"] # should be assigned for 'test_split_type'='cross'
+  test_size: 0.2 # should be assigned for 'test_split_type'='random'
+  fold: 5 # should be > 1 for 'val_split_type'='n-fold'
   random_state: 436346
-  
+  partition_mode: 'strict' # Options: 'relaxed' or 'strict'
+  sim: 0.9 # required when 'partition_mode' is strict
+  word_size: 8 # required when 'partition_mode' is strict
+
 model:
   use_padding: true
   model_max_length: 350
@@ -57,7 +59,6 @@ training:
 wandb:
   enabled: True
   token: 'dc3d431c0afb735d9ac046c72f076bf1f7656472'
-  project_name: 'HyenaDNA-CrossSpecies'
   entity_name: 'haghani-vt'
   timezone: 'US/Eastern'
   timezone_format: '%Y-%m-%d_%H-%M-%S'
