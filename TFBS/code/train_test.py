@@ -1,17 +1,17 @@
+import os
 import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import os
 from torch.utils.data import DataLoader
-from early_stop import EarlyStopping
-from utils import serialize_dict, serialize_array
 from sklearn.metrics import roc_auc_score, average_precision_score
+
+from early_stop import EarlyStopping
 from visualization import plot_roc_pr
 
-class FineTune:
+class Train_Test:
     def __init__(self, logger, device, model_dir, training_params):
         self.logger = logger
         
@@ -22,11 +22,12 @@ class FineTune:
 
     # freeze specified layers by setting `requires_grad` to False.
     def _freeze_layers(self):
-        for name, param in self.model.named_parameters():
-            # freeze the layer if its name matches any of the freeze_layers
-            if any(layer in name for layer in self.training.freeze_layers):
-                param.requires_grad = False
-                self.logger.log_message(f"Freezing layer: {name}")
+        if self.training.freeze_layers != 'none':
+            for name, param in self.model.named_parameters():
+                # freeze the layer if its name matches any of the freeze_layers
+                if any(layer in name for layer in self.training.freeze_layers):
+                    param.requires_grad = False
+                    self.logger.log_message(f"Freezing layer: {name}")
 
     def _train(self, train_loader, optimizer, epoch, loss_fn, log_interval=10):
         self.model.train()
@@ -140,8 +141,7 @@ class FineTune:
         acc, auroc, auprc = self._test(test_loader, model_name, test_result_dir=test_result_dir)
         return acc, auroc, auprc
 
-    # finetune the model based on the given dataset
-    def finetune(self, ds_train, ds_val, model_name, wandb):
+    def train(self, ds_train, ds_val, model_name, wandb):
         self._freeze_layers()
 
         self.logger.log_message(f'model name: {model_name}')
@@ -155,13 +155,13 @@ class FineTune:
         self.logger.log_message(f"Trainable parameters: {trainable_params}")
 
 
-        self.logger.log_message(f"Performing finetuning...")
+        self.logger.log_message(f"Training...")
         train_loader = DataLoader(ds_train, batch_size=self.training.model_params.batch_size, shuffle=True)
         val_loader = DataLoader(ds_val, batch_size=self.training.model_params.batch_size, shuffle=False)
 
         loss_fn = nn.CrossEntropyLoss()
 
-        # self.model.parameters(): the optimizer will update (fine-tuned) all parameters of the model during backpropagation.
+        # self.model.parameters(): the optimizer will update all parameters of the model during backpropagation.
         # This includes the pre-trained weights and the classification head that have been added to the model.
         optimizer = optim.AdamW(self.model.parameters(),
                                 lr=float(self.training.model_params.learning_rate),
@@ -209,9 +209,9 @@ class FineTune:
         return f'{trainable_params} / {total_params}', best_epoch+1, val_acc, val_auroc, val_auprc
 
     # load the saved parameters to the model
-    def load(self, finetuned_model_name):
-        model_path = os.path.join(self.model_dir, finetuned_model_name)
-        self.logger.log_message(f"Loading finetuned model '{model_path}'...")
+    def load(self, model_name):
+        model_path = os.path.join(self.model_dir, model_name)
+        self.logger.log_message(f"Loading model '{model_path}'...")
 
         state_dict = torch.load(model_path, map_location=torch.device(self.device))
         self.model.load_state_dict(state_dict)

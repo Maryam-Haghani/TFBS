@@ -1,25 +1,16 @@
 import torch
-from torch.nn.functional import softmax
-import torch.nn.functional as F
-from Bio import SeqIO
-import numpy as np
 import pandas as pd
 import os
 import sys
 import yaml
 from types import SimpleNamespace
 
-from standard_fine_tune import FineTune
 from embedding import Embedding
-from dna_dataset import DNADataset
-from data_split import DataSplit
-from hyena_dna import HyenaDNAModel
+from datasets.hyenadna_dataset import DNADataset
+from models.hyena_dna import HyenaDNAModel
 
 hyena_dna_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../hyena-dna"))
 sys.path.insert(0, hyena_dna_dir)
-
-from huggingface import HyenaDNAPreTrainedModel
-from standalone_hyenadna import CharacterTokenizer
 
 
 # Recursively converts a dictionary into a SimpleNamespace.
@@ -63,9 +54,9 @@ if __name__ == "__main__":
     random_state = 1972934
     df = df.sample(frac=1, random_state=random_state).reset_index(drop=True)
 
-    self.tokenizer = HyenaDNAModel.get_tokenizer(config.model.model_max_length)
+    self.tokenizer = HyenaDNAModel.get_tokenizer(config.model.max_length)
 
-    ds = DNADataset(df, tokenizer, config.model.model_max_length, config.model.use_padding)
+    ds = DNADataset(df, tokenizer, config.model.max_length, config.model.use_padding)
     
     embd = Embedding(is_finetuned, embedding_dir, config.device)
     emdb.generate(ds)

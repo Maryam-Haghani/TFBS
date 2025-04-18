@@ -1,6 +1,6 @@
 import torch
 
-class DNADataset(torch.utils.data.Dataset):
+class HyenaDNA_Dataset(torch.utils.data.Dataset):
     def __init__(self, df, tokenizer, max_length, use_padding=True, add_eos=False):
         self.df = df
         self.max_length = max_length
@@ -25,7 +25,7 @@ class DNADataset(torch.utils.data.Dataset):
 
         # Add EOS token if required
         if self.add_eos:
-            seq.append(self.tokenizer.sep_token_id)
+            sequence.append(self.tokenizer.sep_token_id)
 
         tokenized_seq = torch.LongTensor(tokenized_seq)
         label = torch.LongTensor([label])

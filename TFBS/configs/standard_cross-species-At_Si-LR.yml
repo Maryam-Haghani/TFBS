@@ -18,7 +18,7 @@ dataset_split:
 
 model:
   use_padding: true
-  model_max_length: 350
+  max_length: 350
   pretrained_model_name: "hyenadna-tiny-1k-seqlen"
       # 'hyenadna-tiny-1k-seqlen'
       # 'hyenadna-tiny-1k-seqlen-d256'
@@ -29,8 +29,7 @@ model:
       # 'hyenadna-large-1m-seqlen'
   is_finetuned: true
   use_saved_model: false
-  saved_finetuned_model_name: "fine-tuned_model_batch_size_32_learning_rate_1e-4_weight_decay_0.1_freeze_layers-.pt"
-  # "fine-tuned_model_batch_size_32_learning_rate_1e-4_weight_decay_0.1_freeze_layers-.pt"
+  saved_model_name: "fine-tuned_model_batch_size_32_learning_rate_1e-4_weight_decay_0.1_freeze_layers-.pt"
 
 device: "cuda"
   
@@ -43,16 +42,10 @@ training:
 #    batch_size: [ 32, 64, 128, 256 ]
     learning_rate: [ 1e-3 ]
 #    weight_decay: [ 0.0, 0.01, 0.1 ]
+    freeze_layers: [['backbone'], ['backbone.embeddings'], ['backbone.layers'], ['none']]
   early_stopping:
     patience: 5
     delta: 0.0
-  freeze_layers: [['backbone'], ['backbone.embeddings'], ['backbone.layers'], ['none']]
-  # 'backbone.embeddings': Freezes the embedding layer.
-  # 'backbone.layers'    : Freezes all transformer blocks.
-  # 'backbone.layers.[i]': Freezes a specific transformer block.
-  # 'backbone'           : Freezes the entire backbone (embeddings + all transformer layers).
-  # 'head'               : Freezes the output classification head.
-
 wandb:
   enabled: True
   token: 'dc3d431c0afb735d9ac046c72f076bf1f7656472'

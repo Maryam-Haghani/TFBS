@@ -1,7 +1,7 @@
 import os
 import sys
 
-hyena_dna_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../hyena-dna"))
+hyena_dna_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../hyena-dna"))
 sys.path.insert(0, hyena_dna_dir)
 
 from standalone_hyenadna import CharacterTokenizer
