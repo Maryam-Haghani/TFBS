@@ -20,7 +20,6 @@ from train_test import Train_Test
 from models.hyena_dna import HyenaDNAModel
 from baselines.DeepBind import DeepBind
 
-
 # python 02-train.py --config_file "../configs/standard_config.yml"
 
 def _init_wandb(wandb_params, model, project_name, run_name):
@@ -56,34 +55,35 @@ if __name__ == "__main__":
     config.device = "cuda" if torch.cuda.is_available() and config.device == "cuda" else "cpu"
     logger.log_message("Using device:", config.device)
 
+    torch.manual_seed(config.dataset_split.random_state)
+    torch.cuda.manual_seed_all(config.dataset_split.random_state)
+
     model_dir = os.path.join(output_dir, "models")
     os.makedirs(model_dir, exist_ok=True)
 
     test_result_dir = os.path.join(output_dir, "test_results")
     os.makedirs(test_result_dir, exist_ok=True)
 
-    tt = Train_Test(logger, config.device, model_dir, config.training)
-
     dfs_train, dfs_val, df_test = DataSplit.split(logger, config.dataset_path,
                                                   os.path.join(config.dataset_split.dir, config.name),
                                                   config.dataset_split, label='label')
 
     if 'hyenadna' in config.model.model_name:
-        tokenizer = HyenaDNAModel.get_tokenizer(config.model.max_length)
-        ds_test = HyenaDNA_Dataset(df_test, tokenizer, config.model.max_length,
-                                   config.model.use_padding)
+        ds_test = HyenaDNA_Dataset(df_test, config.model.max_length, config.model.use_padding)
 
     elif config.model.model_name == 'DeepBind':
         ds_test = DeepBindDataset(df_test, config.model.kernel_length)
 
-    if config.model.use_saved_model:  # saved_model_name should be present
+    tt = Train_Test(logger, config.device, model_dir, config.training)
+
+    if config.model.use_saved_model:  # saved_model_name should be present: for test
         config.training.model_params.batch_size = extract_single_value(config.training.model_params.batch_size)
 
         model = tt.load(config.model.saved_model_name)
         tt.model = model
         test_accuracy, test_auroc, test_auprc = tt.test(ds_test, config.model.saved_model_name, test_result_dir)
 
-    else:
+    else: # training
         model_param_values = list(vars(config.training.model_params).values())
         grid_combinations = list(product(*model_param_values))
 
@@ -114,10 +114,8 @@ if __name__ == "__main__":
                 if 'hyenadna' in config.model.model_name:
                     tt.model = HyenaDNAModel(logger, pretrained_model_name=config.model.model_name,
                                              use_head=True, device=config.device).load_pretrained_model()
-                    ds_train = HyenaDNA_Dataset(dfs_train[fold - 1], tokenizer, config.model.max_length,
-                                                config.model.use_padding)
-                    ds_val = HyenaDNA_Dataset(dfs_val[fold - 1], tokenizer, config.model.max_length,
-                                              config.model.use_padding)
+                    ds_train = HyenaDNA_Dataset(dfs_train[fold - 1], config.model.max_length, config.model.use_padding)
+                    ds_val = HyenaDNA_Dataset(dfs_val[fold - 1], config.model.max_length, config.model.use_padding)
 
                 elif config.model.model_name == 'DeepBind':
                     tt.model = DeepBind(config.model.kernel_length)
@@ -130,24 +128,25 @@ if __name__ == "__main__":
                     _init_wandb(config.wandb, tt.model, project_name, model_name)
 
                 trainable_params, best_epoch, last_val_acc, last_val_auroc, last_val_auprc\
-                    = tt.train(ds_train, ds_val, model_name, wandb, )
+                    = tt.train(ds_train, ds_val, model_name, wandb)
+
                 test_accuracy, test_auroc, test_auprc = tt.test(ds_test, model_name, test_result_dir)
 
                 results.append({
-                            'fold': fold,
-                            'batch_size': batch_size,
-                            'learning_rate': learning_rate,
-                            'weight_decay': weight_decay,
-                            'freeze_layer': freeze_layer,
-                            'trainable_params': trainable_params,
-                            'best_epoch' : best_epoch,
-                            'last_val_acc' : round(last_val_acc, 2),
-                            'last_val_auroc': round(last_val_auroc, 2),
-                            'last_val_auprc': round(last_val_auprc, 2),
-                            'test_accuracy': round(test_accuracy, 2),
-                            'test_auroc': round(test_auroc, 2),
-                            'test_auprc': round(test_auprc, 2)
-                        })
+                        'fold': fold,
+                        'batch_size': batch_size,
+                        'learning_rate': learning_rate,
+                        'weight_decay': weight_decay,
+                        'freeze_layer': freeze_layer,
+                        'trainable_params': trainable_params,
+                        'best_epoch': best_epoch,
+                        'last_val_acc': round(last_val_acc, 2),
+                        'last_val_auroc': round(last_val_auroc, 2),
+                        'last_val_auprc': round(last_val_auprc, 2),
+                        'test_accuracy': round(test_accuracy, 2),
+                        'test_auroc': round(test_auroc, 2),
+                        'test_auprc': round(test_auprc, 2)
+                })
 
                 if config.wandb.enabled:
                     wandb.finish()

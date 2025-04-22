@@ -4,7 +4,6 @@ import sys
 hyena_dna_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../hyena-dna"))
 sys.path.insert(0, hyena_dna_dir)
 
-from standalone_hyenadna import CharacterTokenizer
 from huggingface import HyenaDNAPreTrainedModel
 
 class HyenaDNAModel:
@@ -25,13 +24,3 @@ class HyenaDNAModel:
             n_classes=2
         )
         return model
-
-    @staticmethod
-    def get_tokenizer(model_max_length):
-        tokenizer = CharacterTokenizer(
-            characters=['A', 'C', 'G', 'T', 'N'],
-            model_max_length=model_max_length,
-            add_special_tokens=False,
-            padding_side='left',
-        )
-        return tokenizer
