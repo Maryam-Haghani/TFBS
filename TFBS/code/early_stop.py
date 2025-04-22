@@ -3,7 +3,8 @@ class EarlyStopping:
     """
     Early stops the training if validation loss doesn't improve after a given patience.
     """
-    def __init__(self, patience=5, verbose=False, delta=0.0):
+    def __init__(self, logger, patience=5, verbose=False, delta=0.0):
+        self.logger = logger
         self.patience = patience
         self.verbose = verbose
         self.delta = delta
@@ -22,10 +23,10 @@ class EarlyStopping:
             self.best_model_state = {k: v.cpu() for k, v in model.state_dict().items()}
             self.counter = 0
             if self.verbose:
-                print(f'Validation loss improved to {val_loss:.6f}')
+                self.logger.log_message(f'Validation loss improved to {val_loss:.4f}')
         else:
             self.counter += 1
             if self.verbose:
-                print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
+                self.logger.log_message(f'EarlyStopping counter: {self.counter} out of {self.patience}')
             if self.counter >= self.patience:
                 self.early_stop = True

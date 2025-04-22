@@ -186,7 +186,7 @@ class Train_Test:
                        "val AUROC": val_auroc, "val AUPRC": val_auprc, "val ACC": val_acc})
 
             # check early stopping criteria
-            early_stopping(val_loss, self.model, epoch)
+            early_stopping(self.logger, val_loss, self.model, epoch)
             if early_stopping.early_stop:
                 self.logger.log_message(f"Early stopping triggered. Stopping training at epoch {epoch+1}.")
                 break
