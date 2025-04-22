@@ -12,7 +12,7 @@ from utils import load_config, serialize_dict, serialize_array, extract_single_v
 
 from data_split import DataSplit
 
-from datasets.baseline_dataset import BaselineDataset
+from datasets.deepbind_dataset import DeepBindDataset
 from datasets.hyenadna_dataset import HyenaDNA_Dataset
 
 from train_test import Train_Test
@@ -74,7 +74,7 @@ if __name__ == "__main__":
                                    config.model.use_padding)
 
     elif config.model.model_name == 'DeepBind':
-        ds_test = BaselineDataset(df_test, config.model.max_length)
+        ds_test = DeepBindDataset(df_test, config.model.kernel_length)
 
     if config.model.use_saved_model:  # saved_model_name should be present
         config.training.model_params.batch_size = extract_single_value(config.training.model_params.batch_size)
@@ -120,9 +120,9 @@ if __name__ == "__main__":
                                               config.model.use_padding)
 
                 elif config.model.model_name == 'DeepBind':
-                    tt.model = DeepBind()
-                    ds_train = BaselineDataset(dfs_train[fold - 1], config.model.max_length)
-                    ds_val = BaselineDataset(dfs_val[fold - 1], config.model.max_length)
+                    tt.model = DeepBind(config.model.kernel_length)
+                    ds_train = DeepBindDataset(dfs_train[fold - 1], config.model.kernel_length)
+                    ds_val = DeepBindDataset(dfs_val[fold - 1], config.model.kernel_length)
 
                 project_name = f"{config.model.model_name}_{config.name}_{config.dataset_split.partition_mode}"
 
