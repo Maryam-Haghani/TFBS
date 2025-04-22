@@ -14,11 +14,13 @@ from data_split import DataSplit
 
 from datasets.deepbind_dataset import DeepBindDataset
 from datasets.hyenadna_dataset import HyenaDNA_Dataset
+from datasets.bert_tfbs_dataset import BERT_TFBS_dataset
 
 from train_test import Train_Test
 
 from models.hyena_dna import HyenaDNAModel
 from baselines.DeepBind import DeepBind
+from baselines.BERT_TFBS.bert_tfbs_complete import BERTTFBS_complete
 
 # python 02-train.py --config_file "../configs/standard_config.yml"
 
@@ -70,9 +72,10 @@ if __name__ == "__main__":
 
     if 'hyenadna' in config.model.model_name:
         ds_test = HyenaDNA_Dataset(df_test, config.model.max_length, config.model.use_padding)
-
     elif config.model.model_name == 'DeepBind':
         ds_test = DeepBindDataset(df_test, config.model.kernel_length)
+    elif config.model.model_name == 'BERTTFBS_complete':
+        ds_test = BERT_TFBS_dataset(df_test, config.model.max_length)
 
     tt = Train_Test(logger, config.device, model_dir, config.training)
 
@@ -101,7 +104,7 @@ if __name__ == "__main__":
             config.training.model_params.batch_size = batch_size
             config.training.model_params.learning_rate = learning_rate
             config.training.model_params.weight_decay = weight_decay
-            config.training.freeze_layers = freeze_layer
+            config.training.model_params.freeze_layers = freeze_layer
 
             # for each fold
             for fold in range(1, config.dataset_split.fold + 1):
@@ -121,6 +124,11 @@ if __name__ == "__main__":
                     tt.model = DeepBind(config.model.kernel_length)
                     ds_train = DeepBindDataset(dfs_train[fold - 1], config.model.kernel_length)
                     ds_val = DeepBindDataset(dfs_val[fold - 1], config.model.kernel_length)
+
+                elif config.model.model_name == 'BERTTFBS_complete':
+                    tt.model = BERTTFBS_complete(config.model.max_length)
+                    ds_train = BERT_TFBS_dataset(dfs_train[fold - 1], config.model.max_length)
+                    ds_val = BERT_TFBS_dataset(dfs_val[fold - 1], config.model.max_length)
 
                 project_name = f"{config.model.model_name}_{config.name}_{config.dataset_split.partition_mode}"
 

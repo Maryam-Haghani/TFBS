@@ -37,6 +37,8 @@ device: "cuda"
   
 training:
   num_epochs: 60
+  adjustable_LR:
+    enabled: false
   model_params:
     batch_size: [32]
     learning_rate: [1e-4]

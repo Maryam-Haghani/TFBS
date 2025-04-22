@@ -10,6 +10,7 @@ from sklearn.metrics import roc_auc_score, average_precision_score
 
 from early_stop import EarlyStopping
 from visualization import plot_roc_pr
+from utils import adjust_learning_rate
 
 class Train_Test:
     def __init__(self, logger, device, model_dir, training_params):
@@ -22,10 +23,10 @@ class Train_Test:
 
     # freeze specified layers by setting `requires_grad` to False.
     def _freeze_layers(self):
-        if self.training.freeze_layers != 'none':
+        if self.training.model_params.freeze_layers != 'none':
             for name, param in self.model.named_parameters():
                 # freeze the layer if its name matches any of the freeze_layers
-                if any(layer in name for layer in self.training.freeze_layers):
+                if any(layer in name for layer in self.training.model_params.freeze_layers):
                     param.requires_grad = False
                     self.logger.log_message(f"Freezing layer: {name}")
 
@@ -46,7 +47,18 @@ class Train_Test:
             train_loss += batch_loss
 
             loss.backward()
+
+            if self.training.adjustable_LR.enabled:
+                # warm-up and LR decay
+                adjust_learning_rate(optimizer=optimizer, current_epoch=epoch, max_epoch=self.training.num_epochs,
+                                     lr_min=float(self.training.adjustable_LR.min),
+                                     lr_max=float(self.training.adjustable_LR.max), warmup=True)
+
+            # model weight update
             optimizer.step()
+
+            # if self.training.adjustable_LR.enabled:
+            #     self.logger.log_message("train lr is ", optimizer.state_dict()["param_groups"][0]["lr"])
 
             if batch_idx % log_interval == 0:
                 self.logger.log_message('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
@@ -171,6 +183,7 @@ class Train_Test:
 
 
         early_stopping = EarlyStopping(
+            logger = self.logger,
             patience=self.training.early_stopping.patience,
             verbose=True,
             delta=self.training.early_stopping.delta
@@ -186,7 +199,7 @@ class Train_Test:
                        "val AUROC": val_auroc, "val AUPRC": val_auprc, "val ACC": val_acc})
 
             # check early stopping criteria
-            early_stopping(self.logger, val_loss, self.model, epoch)
+            early_stopping(val_loss, self.model, epoch)
             if early_stopping.early_stop:
                 self.logger.log_message(f"Early stopping triggered. Stopping training at epoch {epoch+1}.")
                 break
