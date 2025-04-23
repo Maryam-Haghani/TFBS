@@ -20,7 +20,7 @@ from train_test import Train_Test
 
 from models.hyena_dna import HyenaDNAModel
 from baselines.DeepBind import DeepBind
-from baselines.BERT_TFBS.bert_tfbs_complete import BERTTFBS_complete
+from baselines.BERT_TFBS.bert_tfbs import BERT_TFBS
 
 # python 02-train.py --config_file "../configs/standard_config.yml"
 
@@ -74,8 +74,10 @@ if __name__ == "__main__":
         ds_test = HyenaDNA_Dataset(df_test, config.model.max_length, config.model.use_padding)
     elif config.model.model_name == 'DeepBind':
         ds_test = DeepBindDataset(df_test, config.model.kernel_length)
-    elif config.model.model_name == 'BERTTFBS_complete':
+    elif 'BERTTFBS' in config.model.model_name:
         ds_test = BERT_TFBS_dataset(df_test, config.model.max_length)
+    else:
+        raise ValueError(f'Given model name ({config.model.model_name}) is not valid!')
 
     tt = Train_Test(logger, config.device, model_dir, config.training)
 
@@ -125,10 +127,13 @@ if __name__ == "__main__":
                     ds_train = DeepBindDataset(dfs_train[fold - 1], config.model.kernel_length)
                     ds_val = DeepBindDataset(dfs_val[fold - 1], config.model.kernel_length)
 
-                elif config.model.model_name == 'BERTTFBS_complete':
-                    tt.model = BERTTFBS_complete(config.model.max_length)
+                elif 'BERTTFBS' in config.model.model_name:
                     ds_train = BERT_TFBS_dataset(dfs_train[fold - 1], config.model.max_length)
                     ds_val = BERT_TFBS_dataset(dfs_val[fold - 1], config.model.max_length)
+                    tt.model = BERT_TFBS(config.model.max_length, config.model.pretrained_model_name, config.model.embedding_size,
+                                    config.model.model_version)
+                else:
+                    raise ValueError(f'Given model name ({config.model.model_name}) is not valid!')
 
                 project_name = f"{config.model.model_name}_{config.name}_{config.dataset_split.partition_mode}"
 
