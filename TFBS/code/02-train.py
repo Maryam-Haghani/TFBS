@@ -48,6 +48,9 @@ if __name__ == "__main__":
     config = load_config(args.config_file)
     output_dir = os.path.join(config.output_dir, config.model.model_name,
                               'standard', config.name, config.dataset_split.partition_mode)
+    if hasattr(config.model, 'model_version') and config.model.model_version:
+        output_dir = os.path.join(config.output_dir, config.model.model_name, config.model.model_version,
+                                  'standard', config.name, config.dataset_split.partition_mode)
     os.makedirs(output_dir, exist_ok=True)
 
     logger = CustomLogger(__name__, log_directory=output_dir, log_file = f'log')
@@ -74,7 +77,7 @@ if __name__ == "__main__":
         ds_test = HyenaDNA_Dataset(df_test, config.model.max_length, config.model.use_padding)
     elif config.model.model_name == 'DeepBind':
         ds_test = DeepBindDataset(df_test, config.model.kernel_length)
-    elif 'BERTTFBS' in config.model.model_name:
+    elif 'BERT-TFBS' in config.model.model_name:
         ds_test = BERT_TFBS_dataset(df_test, config.model.max_length)
     else:
         raise ValueError(f'Given model name ({config.model.model_name}) is not valid!')
@@ -115,6 +118,8 @@ if __name__ == "__main__":
                 model_name = (f'fold-{fold}_freeze_layer-{serialize_array(freeze_layer)}'
                               f'_{serialize_dict(config.training.model_params)}')
 
+                project_name = f"{config.model.model_name}_{config.name}_{config.dataset_split.partition_mode}"
+
                 # Reload the model fresh each time for the current combination
                 if 'hyenadna' in config.model.model_name:
                     tt.model = HyenaDNAModel(logger, pretrained_model_name=config.model.model_name,
@@ -127,15 +132,15 @@ if __name__ == "__main__":
                     ds_train = DeepBindDataset(dfs_train[fold - 1], config.model.kernel_length)
                     ds_val = DeepBindDataset(dfs_val[fold - 1], config.model.kernel_length)
 
-                elif 'BERTTFBS' in config.model.model_name:
+                elif 'BERT-TFBS' in config.model.model_name:
                     ds_train = BERT_TFBS_dataset(dfs_train[fold - 1], config.model.max_length)
                     ds_val = BERT_TFBS_dataset(dfs_val[fold - 1], config.model.max_length)
-                    tt.model = BERT_TFBS(config.model.max_length, config.model.pretrained_model_name, config.model.embedding_size,
-                                    config.model.model_version)
+                    tt.model = BERT_TFBS(config.model.max_length, config.model.pretrained_model_name,
+                                         config.model.embedding_size, config.model.model_version)
+                    project_name = str(config.model.model_version) + '_' + project_name
                 else:
                     raise ValueError(f'Given model name ({config.model.model_name}) is not valid!')
 
-                project_name = f"{config.model.model_name}_{config.name}_{config.dataset_split.partition_mode}"
 
                 if config.wandb.enabled:  # visualization with wandb
                     _init_wandb(config.wandb, tt.model, project_name, model_name)

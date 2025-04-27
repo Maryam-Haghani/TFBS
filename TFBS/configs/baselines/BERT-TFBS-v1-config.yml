@@ -23,14 +23,14 @@ model:
   model_name: "BERT-TFBS"
   model_version: "V1"
   pretrained_model_name: "zhihan1996/DNABERT-2-117M" # the only DNA-BERT2 model
-  embedding_size: 768,
+  embedding_size: 768
   use_saved_model: false # for testing
   saved_model_name: ""
 
 device: "cuda"
   
 training:
-  num_epochs: 20
+  num_epochs: 60
   adjustable_LR:
     enabled: true
     max: 2e-6
