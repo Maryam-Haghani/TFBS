@@ -6,7 +6,7 @@ import yaml
 from types import SimpleNamespace
 
 from embedding import Embedding
-from datasets.hyenadna_dataset import DNADataset
+from datasets.hyenadna_dataset import HyenaDNA_Dataset
 from models.hyena_dna import HyenaDNAModel
 
 hyena_dna_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../hyena-dna"))
@@ -54,9 +54,9 @@ if __name__ == "__main__":
     random_state = 1972934
     df = df.sample(frac=1, random_state=random_state).reset_index(drop=True)
 
-    self.tokenizer = HyenaDNAModel.get_tokenizer(config.model.max_length)
+    tokenizer = HyenaDNAModel.get_tokenizer(config.model.max_length)
 
-    ds = DNADataset(df, tokenizer, config.model.max_length, config.model.use_padding)
+    ds = HyenaDNA_Dataset(df, tokenizer, config.model.max_length, config.model.use_padding)
     
     embd = Embedding(is_finetuned, embedding_dir, config.device)
     emdb.generate(ds)

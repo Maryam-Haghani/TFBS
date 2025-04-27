@@ -15,7 +15,7 @@ class Embedding:
         self.device = device
 
         hyena_model = HyenaDNAModel(pretrained_model_name=checkpoint_path, checkpoint_path=checkpoint_path,
-                                    use_head=True, device=self.device)
+                                    device=self.device, use_head=False)
         
         # Register a forward hook on the last LayerNorm (ln_f) to save the output of the LayerNorm layer as hidden_embeddinfs
         if self.is_finetuned:

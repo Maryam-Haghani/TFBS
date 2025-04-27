@@ -7,7 +7,7 @@ sys.path.insert(0, hyena_dna_dir)
 from huggingface import HyenaDNAPreTrainedModel
 
 class HyenaDNAModel:
-    def __init__(self, logger, pretrained_model_name, use_head, device):
+    def __init__(self, logger, pretrained_model_name, device, use_head):
         self.logger = logger
         self.pretrained_model_name = pretrained_model_name
         self.use_head = use_head
