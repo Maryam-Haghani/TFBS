@@ -99,7 +99,8 @@ if __name__ == "__main__":
 
         model = tt.load(config.model.saved_model_name)
         tt.model = model
-        test_accuracy, test_auroc, test_auprc = tt.test(ds_test, config.model.saved_model_name, test_result_dir)
+        test_accuracy, test_auroc, test_auprc, test_f1, test_mcc\
+            = tt.test(ds_test, config.model.saved_model_name, test_result_dir)
 
     else: # training
         model_param_values = list(vars(config.training.model_params).values())
@@ -163,10 +164,11 @@ if __name__ == "__main__":
                 if config.wandb.enabled:  # visualization with wandb
                     _init_wandb(config.wandb, tt.model, project_name, model_name)
 
-                trainable_params, best_epoch, last_val_acc, last_val_auroc, last_val_auprc\
+                trainable_params, best_epoch, last_val_acc, last_val_auroc, last_val_auprc, last_val_f1, last_val_mcc\
                     = tt.train(ds_train, ds_val, model_name, wandb)
 
-                test_accuracy, test_auroc, test_auprc = tt.test(ds_test, model_name, test_result_dir)
+                test_accuracy, test_auroc, test_auprc, test_f1, test_mcc\
+                    = tt.test(ds_test, model_name, test_result_dir)
 
                 results.append({
                         'fold': fold,
@@ -178,9 +180,13 @@ if __name__ == "__main__":
                         'trainable_params': trainable_params,
                         'best_epoch': best_epoch,
                         'last_val_acc': round(last_val_acc, 2),
+                        'last_val_f1': round(last_val_f1, 2),
+                        'last_val_mcc': round(last_val_acc, 2),
                         'last_val_auroc': round(last_val_auroc, 2),
                         'last_val_auprc': round(last_val_auprc, 2),
                         'test_accuracy': round(test_accuracy, 2),
+                        'test_f1': round(test_f1, 2),
+                        'test_mcc': round(test_mcc, 2),
                         'test_auroc': round(test_auroc, 2),
                         'test_auprc': round(test_auprc, 2)
                 })
