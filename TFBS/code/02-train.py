@@ -60,7 +60,7 @@ if __name__ == "__main__":
     if not getattr(config.training.model_params, 'eval_batch_size', None):
         config.training.model_params.eval_batch_size = config.training.model_params.train_batch_size
 
-    logger = CustomLogger(__name__, log_directory=output_dir, log_file = f'log')
+    logger = CustomLogger(__name__, log_directory=output_dir, log_file=f'log')
 
     logger.log_message(f"Configuration loaded: {config}")
 
@@ -81,11 +81,13 @@ if __name__ == "__main__":
                                                   config.dataset_split, label='label')
 
     if 'hyenadna' in config.model.model_name:
-        ds_test = HyenaDNA_Dataset(df_test, config.model.max_length, config.model.use_padding)
+        tokenizer = HyenaDNAModel.get_tokenizer(config.model.max_length)
+        ds_test = HyenaDNA_Dataset(tokenizer, df_test, config.model.max_length, config.model.use_padding)
     elif config.model.model_name == 'DeepBind':
         ds_test = DeepBindDataset(df_test, config.model.kernel_length)
     elif 'BERT-TFBS' in config.model.model_name:
-        ds_test = BERT_TFBS_dataset(df_test, config.model.max_length)
+        tokenizer = BERT_TFBS.get_tokenizer()
+        ds_test = BERT_TFBS_dataset(tokenizer, df_test, config.model.max_length)
     elif 'nucleotide-transformer' in config.model.model_name:
         tokenizer = AgroNTModel.get_tokenizer()
         ds_test = AgroNT_Dataset(tokenizer, df_test, config.model.max_length)
@@ -95,11 +97,12 @@ if __name__ == "__main__":
     tt = Train_Test(logger, config.device, model_dir, config.training)
 
     if config.model.use_saved_model:  # saved_model_name should be present: for test
-        config.training.model_params.eval_batch_size = extract_single_value(config.training.model_params.eval_batch_size)
+        config.training.model_params.eval_batch_size = extract_single_value(
+            config.training.model_params.eval_batch_size)
 
         model = tt.load(config.model.saved_model_name)
         tt.model = model
-        test_accuracy, test_auroc, test_auprc, test_f1, test_mcc\
+        test_accuracy, test_auroc, test_auprc, test_f1, test_mcc \
             = tt.test(ds_test, config.model.saved_model_name, test_result_dir)
 
     else: # training
@@ -109,7 +112,7 @@ if __name__ == "__main__":
         logger.log_message(f'There are {len(grid_combinations)} combination of parameters...')
 
         results = []
-        
+
         # train based on each combination
         for train_batch_size, eval_batch_size, learning_rate, weight_decay, freeze_layer in grid_combinations:
             logger.log_message("\n********************************************************************")
@@ -135,9 +138,11 @@ if __name__ == "__main__":
                 # Reload the model fresh each time for the current combination
                 if 'hyenadna' in config.model.model_name:
                     tt.model = (HyenaDNAModel(logger, pretrained_model_name=config.model.model_name, device=config.device)
-                                .load_pretrained_model())
-                    ds_train = HyenaDNA_Dataset(dfs_train[fold - 1], config.model.max_length, config.model.use_padding)
-                    ds_val = HyenaDNA_Dataset(dfs_val[fold - 1], config.model.max_length, config.model.use_padding)
+                        .load_pretrained_model())
+                    ds_train = HyenaDNA_Dataset(tokenizer, dfs_train[fold - 1],
+                                                config.model.max_length, config.model.use_padding)
+                    ds_val = HyenaDNA_Dataset(tokenizer, dfs_val[fold - 1],
+                                              config.model.max_length, config.model.use_padding)
 
                 elif config.model.model_name == 'DeepBind':
                     tt.model = DeepBind(config.model.kernel_length)
@@ -145,8 +150,8 @@ if __name__ == "__main__":
                     ds_val = DeepBindDataset(dfs_val[fold - 1], config.model.kernel_length)
 
                 elif 'BERT-TFBS' in config.model.model_name:
-                    ds_train = BERT_TFBS_dataset(dfs_train[fold - 1], config.model.max_length)
-                    ds_val = BERT_TFBS_dataset(dfs_val[fold - 1], config.model.max_length)
+                    ds_train = BERT_TFBS_dataset(tokenizer, dfs_train[fold - 1], config.model.max_length)
+                    ds_val = BERT_TFBS_dataset(tokenizer, dfs_val[fold - 1], config.model.max_length)
                     tt.model = BERT_TFBS(config.model.max_length, config.model.pretrained_model_name,
                                          config.model.embedding_size, config.model.model_version)
                     project_name = str(config.model.model_version) + '_' + project_name
@@ -155,47 +160,48 @@ if __name__ == "__main__":
                     tt.model = (
                         AgroNTModel(logger, pretrained_model_name=config.model.model_name, device=config.device)
                         .load_pretrained_model(config.model.finetune_type))
-                    ds_train = AgroNT_Dataset(tokenizer, dfs_train[fold - 1], config.model.max_length, config.model.use_padding)
-                    ds_val = AgroNT_Dataset(tokenizer, dfs_val[fold - 1], config.model.max_length, config.model.use_padding)
+                    ds_train = AgroNT_Dataset(tokenizer, dfs_train[fold - 1], config.model.max_length,
+                                              config.model.use_padding)
+                    ds_val = AgroNT_Dataset(tokenizer, dfs_val[fold - 1], config.model.max_length,
+                                            config.model.use_padding)
                 else:
                     raise ValueError(f'Given model name ({config.model.model_name}) is not valid!')
-
 
                 if config.wandb.enabled:  # visualization with wandb
                     _init_wandb(config.wandb, tt.model, project_name, model_name)
 
-                trainable_params, best_epoch, last_val_acc, last_val_auroc, last_val_auprc, last_val_f1, last_val_mcc\
+                trainable_params, best_epoch, last_val_acc, last_val_auroc, last_val_auprc, last_val_f1, last_val_mcc \
                     = tt.train(ds_train, ds_val, model_name, wandb)
 
-                test_accuracy, test_auroc, test_auprc, test_f1, test_mcc\
+                test_accuracy, test_auroc, test_auprc, test_f1, test_mcc \
                     = tt.test(ds_test, model_name, test_result_dir)
 
                 results.append({
-                        'fold': fold,
-                        'train_batch_size': train_batch_size,
-                        'eval_batch_size': eval_batch_size,
-                        'learning_rate': learning_rate,
-                        'weight_decay': weight_decay,
-                        'freeze_layer': freeze_layer,
-                        'trainable_params': trainable_params,
-                        'best_epoch': best_epoch,
-                        'last_val_acc': round(last_val_acc, 2),
-                        'last_val_f1': round(last_val_f1, 2),
-                        'last_val_mcc': round(last_val_acc, 2),
-                        'last_val_auroc': round(last_val_auroc, 2),
-                        'last_val_auprc': round(last_val_auprc, 2),
-                        'test_accuracy': round(test_accuracy, 2),
-                        'test_f1': round(test_f1, 2),
-                        'test_mcc': round(test_mcc, 2),
-                        'test_auroc': round(test_auroc, 2),
-                        'test_auprc': round(test_auprc, 2)
+                    'fold': fold,
+                    'train_batch_size': train_batch_size,
+                    'eval_batch_size': eval_batch_size,
+                    'learning_rate': learning_rate,
+                    'weight_decay': weight_decay,
+                    'freeze_layer': freeze_layer,
+                    'trainable_params': trainable_params,
+                    'best_epoch': best_epoch,
+                    'last_val_acc': round(last_val_acc, 2),
+                    'last_val_f1': round(last_val_f1, 2),
+                    'last_val_mcc': round(last_val_acc, 2),
+                    'last_val_auroc': round(last_val_auroc, 2),
+                    'last_val_auprc': round(last_val_auprc, 2),
+                    'test_accuracy': round(test_accuracy, 2),
+                    'test_f1': round(test_f1, 2),
+                    'test_mcc': round(test_mcc, 2),
+                    'test_auroc': round(test_auroc, 2),
+                    'test_auprc': round(test_auprc, 2)
                 })
 
-                if config.wandb.enabled:
-                    wandb.finish()
+if config.wandb.enabled:
+    wandb.finish()
 
-        # get metrics for test set
-        df_results = pd.DataFrame(results)
-        results_csv_file = os.path.join(output_dir, 'hyper_params.csv')
-        df_results.to_csv(results_csv_file, index=False)
-        logger.log_message(f"Grid search results saved to {results_csv_file}", use_time=True)
+# get metrics for test set
+df_results = pd.DataFrame(results)
+results_csv_file = os.path.join(output_dir, 'hyper_params.csv')
+df_results.to_csv(results_csv_file, index=False)
+logger.log_message(f"Grid search results saved to {results_csv_file}", use_time=True)

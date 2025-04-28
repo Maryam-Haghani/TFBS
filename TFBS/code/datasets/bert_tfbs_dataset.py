@@ -1,13 +1,11 @@
 import torch
 import torch.utils.data as Data
-from transformers import AutoTokenizer
 
 class BERT_TFBS_dataset(Data.Dataset):
-    def __init__(self, df, max_length):
+    def __init__(self, tokenizer, df, max_length):
+        self.tokenizer = tokenizer
         self.df = df
         self.max_length = max_length
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            "zhihan1996/DNABERT-2-117M", trust_remote_code=True)
 
     def __len__(self):
         return len(self.df)

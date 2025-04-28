@@ -1,4 +1,4 @@
-from transformers import AutoModel
+from transformers import AutoModel, AutoTokenizer
 from .cbam import *
 
 # linear module
@@ -152,6 +152,7 @@ class CNNNET_complete(nn.Module):
 class BERT_TFBS(nn.Module):
     def __init__(self, input_channel, pretrained_model_name, embedding_size, model_version):
         super(BERT_TFBS, self).__init__()
+        self.pretrained_model_name = pretrained_model_name
         self.bert = AutoModel.from_pretrained(pretrained_model_name, trust_remote_code=True)
         self.model_version = model_version
         for param in self.bert.parameters():
@@ -163,6 +164,11 @@ class BERT_TFBS(nn.Module):
             self.model = ClassificationHead(embedding_size)
         elif self.model_version == 'V2':
             self.model = CNNNET_V2(input_channel, embedding_size)
+
+    @classmethod
+    def get_tokenizer(self):
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self.pretrained_model_name, trust_remote_code=True)
 
     def forward(self, X):
         outputs = self.bert(X)
