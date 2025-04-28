@@ -1,5 +1,6 @@
 from transformers import AutoModelForSequenceClassification
 from transformers import AutoTokenizer
+from peft import LoraConfig, TaskType, get_peft_model
 
 class AgroNTModel:
     def __init__(self, logger, pretrained_model_name, device):
@@ -7,18 +8,15 @@ class AgroNTModel:
         self.pretrained_model_name = pretrained_model_name
         self.device = device
 
-    @classmethod
     def get_tokenizer(self):
         return AutoTokenizer.from_pretrained(self.pretrained_model_name)
 
-    @classmethod
     def load_pretrained_model(self, finetune_type):
         self.logger.log_message(f"Getting pretrained model '{self.pretrained_model_name}' on device '{self.device}'...")
 
         model = (AutoModelForSequenceClassification
                  .from_pretrained(self.pretrained_model_name, num_labels=2))
         model = model.to(self.device)
-
         return self._add_LoRA_params(model) if finetune_type == "LoRA" else model
 
     def _add_LoRA_params(self, model):

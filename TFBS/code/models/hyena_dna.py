@@ -14,7 +14,6 @@ class HyenaDNAModel:
         self.use_head = use_head
         self.device = device
 
-    @classmethod
     def get_tokenizer(self, max_length):
         return CharacterTokenizer(
             characters=['A', 'C', 'G', 'T', 'N'],
@@ -23,7 +22,6 @@ class HyenaDNAModel:
             padding_side='left',
         )
 
-    @classmethod
     def load_pretrained_model(self):
         self.logger.log_message(f"Getting pretrained model '{self.pretrained_model_name}' on device '{self.device}'...")
         model = HyenaDNAPreTrainedModel.from_pretrained(
