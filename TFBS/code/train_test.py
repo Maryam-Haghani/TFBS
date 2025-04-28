@@ -6,7 +6,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from sklearn.metrics import roc_auc_score, average_precision_score
+from transformers.modeling_outputs import SequenceClassifierOutput
+from sklearn.metrics import (
+    roc_auc_score,
+    average_precision_score,
+    f1_score,
+    matthews_corrcoef
+)
 
 from early_stop import EarlyStopping
 from visualization import plot_roc_pr
@@ -39,10 +45,11 @@ class Train_Test:
             optimizer.zero_grad()
 
             output = self.model(data)
+            logits = output.logits if isinstance(output, SequenceClassifierOutput) else output
 
             total += data.size(0)
 
-            loss = loss_fn(output, labels.squeeze(1))  # the average loss across batch
+            loss = loss_fn(logits, labels.squeeze(1))  # the average loss across batch
             batch_loss = loss.item() * data.size(0)  # multiply loss by batch size to get total loss for this batch
             train_loss += batch_loss
 
@@ -77,23 +84,26 @@ class Train_Test:
         total = 0
         all_pos_probs = []  # probabilities of positive class (class 1)
         all_labels = []  # true labels
+        all_preds = [] # predicted labels
         results = []
         with torch.no_grad():
             for sequence, data, true_labels in test_loader:
                 data, true_labels = data.to(self.device), true_labels.to(self.device)
                 output = self.model(data)
+                logits = output.logits if isinstance(output, SequenceClassifierOutput) else output
 
-                probs = F.softmax(output, dim=1) # probabilities for each class
-                pred_labels = output.argmax(dim=1, keepdim=True)  # predicted class index
+                probs = F.softmax(logits, dim=1) # probabilities for each class
+                pred_labels = logits.argmax(dim=1, keepdim=True)  # predicted class index
                 correct += pred_labels.eq(true_labels.view_as(pred_labels)).sum().item()
                 total += data.size(0)
 
                 all_pos_probs.append(probs[:, 1].cpu().numpy())
                 all_labels.append(true_labels.cpu().numpy())
+                all_preds.append(pred_labels.view(-1).cpu().numpy())
 
                 if loss_fn is not None: # validating
                     # Compute the loss for the batch and accumulate it
-                    batch_avg_loss = loss_fn(output, true_labels.squeeze(1))  # calculates the average loss per sample in the batch.
+                    batch_avg_loss = loss_fn(logits, true_labels.squeeze(1))  # calculates the average loss per sample in the batch.
                     batch_loss = batch_avg_loss.item() * data.size(0)  # multiply loss by batch size (data.size(0)) to get total loss for this batch
                     test_loss += batch_loss
                 else:
@@ -110,23 +120,29 @@ class Train_Test:
         # flatten the lists
         all_pos_probs = np.concatenate(all_pos_probs)
         all_labels = np.concatenate(all_labels)
+        all_preds = np.concatenate(all_preds)
 
+        # compute metrics
         accuracy = 100.0 * correct / total if total > 0 else 0
         try:
             auroc = roc_auc_score(all_labels, all_pos_probs)
         except ValueError:
             auroc = float('nan')  # when only one class present
         auprc = average_precision_score(all_labels, all_pos_probs)
+        f1 = f1_score(all_labels, all_preds)
+        mcc = matthews_corrcoef(all_labels, all_preds)
 
         self.logger.log_message(f'Accuracy: {accuracy:.2f}%\n')
-        self.logger.log_message(f'AUROC: {auroc:.2f}\n')
-        self.logger.log_message(f'AUPRC: {auprc:.2f}\n')
+        self.logger.log_message(f'AUROC:    {auroc:.2f}\n')
+        self.logger.log_message(f'AUPRC:    {auprc:.2f}\n')
+        self.logger.log_message(f'F1 Score: {f1:.2f}\n')
+        self.logger.log_message(f'MCC:      {mcc:.2f}')
         
         if loss_fn is not None:  # validating
             # average loss over all samples
             avg_test_loss = test_loss / total
             self.logger.log_message(f'\nValidation loss: {avg_test_loss:.4f}\n')
-            return accuracy, auroc, auprc, avg_test_loss
+            return accuracy, auroc, auprc, f1, mcc, avg_test_loss
         else: # save test results
             test_result_dir = os.path.join(test_result_dir, 'CSVs')
             os.makedirs(test_result_dir, exist_ok=True)
@@ -143,15 +159,15 @@ class Train_Test:
             plot_roc_pr('PR', all_labels, all_pos_probs, 'Recall',
                         'Precision', test_result_dir, model_name)
 
-            return accuracy, auroc, auprc
+            return accuracy, auroc, auprc, f1, mcc
 
     # compute metrics for test dataset
     def test(self, ds_test, model_name, test_result_dir):
         self.logger.log_message("Getting test set accuracy...")
 
-        test_loader = DataLoader(ds_test, batch_size=self.training.model_params.batch_size, shuffle=True)
-        acc, auroc, auprc = self._test(test_loader, model_name, test_result_dir=test_result_dir)
-        return acc, auroc, auprc
+        test_loader = DataLoader(ds_test, batch_size=self.training.model_params.eval_batch_size, shuffle=True)
+        acc, auroc, auprc, f1, mcc  = self._test(test_loader, model_name, test_result_dir=test_result_dir)
+        return acc, auroc, auprc, f1, mcc
 
     def train(self, ds_train, ds_val, model_name, wandb):
         self._freeze_layers()
@@ -168,8 +184,8 @@ class Train_Test:
 
 
         self.logger.log_message(f"Training...")
-        train_loader = DataLoader(ds_train, batch_size=self.training.model_params.batch_size, shuffle=True)
-        val_loader = DataLoader(ds_val, batch_size=self.training.model_params.batch_size, shuffle=False)
+        train_loader = DataLoader(ds_train, batch_size=self.training.model_params.train_batch_size, shuffle=True)
+        val_loader = DataLoader(ds_val, batch_size=self.training.model_params.eval_batch_size, shuffle=False)
 
         loss_fn = nn.CrossEntropyLoss()
 
@@ -180,7 +196,6 @@ class Train_Test:
                                 weight_decay=float(self.training.model_params.weight_decay))
 
         self.model.to(self.device)
-
 
         early_stopping = EarlyStopping(
             logger = self.logger,
@@ -194,9 +209,20 @@ class Train_Test:
             self.logger.log_message(f'Epoch {epoch+1}/{self.training.num_epochs}')
 
             train_loss = self._train(train_loader, optimizer, epoch, loss_fn)
-            val_acc, val_auroc, val_auprc, val_loss = self._test(val_loader, model_name, loss_fn=loss_fn)
-            wandb.log({"epoch":epoch+1, "train loss": train_loss, "val loss": val_loss,
-                       "val AUROC": val_auroc, "val AUPRC": val_auprc, "val ACC": val_acc})
+            val_acc, val_auroc, val_auprc, val_f1, val_mcc, val_loss = self._test(
+                val_loader, model_name, loss_fn=loss_fn
+            )
+
+            wandb.log({
+                "epoch": epoch + 1,
+                "train loss": train_loss,
+                "val loss": val_loss,
+                "val ACC": val_acc,
+                "val AUROC": val_auroc,
+                "val AUPRC": val_auprc,
+                "val F1": val_f1,
+                "val MCC": val_mcc
+            })
 
             # check early stopping criteria
             early_stopping(val_loss, self.model, epoch)
@@ -219,7 +245,7 @@ class Train_Test:
             torch.save(self.model.state_dict(), model_path)
             self.logger.log_message(f"Best model saved as: {model_path}")
 
-        return f'{trainable_params} / {total_params}', best_epoch+1, val_acc, val_auroc, val_auprc
+        return f'{trainable_params} / {total_params}', best_epoch+1, val_acc, val_auroc, val_auprc, val_f1, val_mcc
 
     # load the saved parameters to the model
     def load(self, model_name):
