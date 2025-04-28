@@ -20,17 +20,14 @@ class AgroNTModel:
         return self._add_LoRA_params(model) if finetune_type == "LoRA" else model
 
     def _add_LoRA_params(self, model):
-        return model
-        # from peft import LoraConfig, TaskType, get_peft_model
-        #
-        # self.logger.log_message(f"Setting up LoRA config...")
-        #
-        # peft_config = LoraConfig(
-        #     task_type=TaskType.SEQ_CLS, inference_mode=False, r=1, lora_alpha=32, lora_dropout=0.1,
-        #     target_modules=["query", "value"],
-        #     # modules_to_save=["intermediate"] # modules that are not frozen and updated during the training
-        # )
-        #
-        # lora_classifier = get_peft_model(model, peft_config)  # transform classifier into a peft model
-        # lora_classifier.print_trainable_parameters()
-        # lora_classifier.to(self.device)
+        self.logger.log_message(f"Setting up LoRA config...")
+
+        peft_config = LoraConfig(
+            task_type=TaskType.SEQ_CLS, inference_mode=False, r=1, lora_alpha=32, lora_dropout=0.1,
+            target_modules=["query", "value"],
+            # modules_to_save=["intermediate"] # modules that are not frozen and updated during the training
+        )
+        lora_classifier = get_peft_model(model, peft_config)  # transform classifier into a peft model
+        lora_classifier.print_trainable_parameters()
+        lora_classifier.to(self.device)
+        return lora_classifier
