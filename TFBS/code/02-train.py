@@ -15,12 +15,14 @@ from data_split import DataSplit
 from datasets.deepbind_dataset import DeepBindDataset
 from datasets.hyenadna_dataset import HyenaDNA_Dataset
 from datasets.bert_tfbs_dataset import BERT_TFBS_dataset
+from datasets.agro_nt_dataset import AgroNT_Dataset
 
 from train_test import Train_Test
 
 from models.hyena_dna import HyenaDNAModel
 from baselines.DeepBind import DeepBind
 from baselines.BERT_TFBS.bert_tfbs import BERT_TFBS
+from baselines.agro_nt import AgroNTModel
 
 # python 02-train.py --config_file "../configs/standard_config.yml"
 
@@ -46,12 +48,17 @@ if __name__ == "__main__":
 
     args = parse_arguments()
     config = load_config(args.config_file)
-    output_dir = os.path.join(config.output_dir, config.model.model_name,
-                              'standard', config.name, config.dataset_split.partition_mode)
-    if hasattr(config.model, 'model_version') and config.model.model_version:
-        output_dir = os.path.join(config.output_dir, config.model.model_name, config.model.model_version,
-                                  'standard', config.name, config.dataset_split.partition_mode)
+    output_dir = os.path.join(config.output_dir, config.model.model_name.replace('/', '_'),
+                              config.model.finetune_type, config.name, config.dataset_split.partition_mode)
+    # if there's a non‐empty model_version, add it to output_dir
+    if getattr(config.model, 'model_version', None):
+        output_dir = os.path.join(config.output_dir, config.model.model_name.replace('/', '_'), config.model.model_version,
+                                  config.model.finetune_type, config.name, config.dataset_split.partition_mode)
     os.makedirs(output_dir, exist_ok=True)
+
+    # make sure eval_batch_size is defined; otherwise use train_batch_size
+    if not getattr(config.training.model_params, 'eval_batch_size', None):
+        config.training.model_params.eval_batch_size = config.training.model_params.train_batch_size
 
     logger = CustomLogger(__name__, log_directory=output_dir, log_file = f'log')
 
@@ -79,13 +86,16 @@ if __name__ == "__main__":
         ds_test = DeepBindDataset(df_test, config.model.kernel_length)
     elif 'BERT-TFBS' in config.model.model_name:
         ds_test = BERT_TFBS_dataset(df_test, config.model.max_length)
+    elif 'nucleotide-transformer' in config.model.model_name:
+        tokenizer = AgroNTModel.get_tokenizer()
+        ds_test = AgroNT_Dataset(tokenizer, df_test, config.model.max_length)
     else:
         raise ValueError(f'Given model name ({config.model.model_name}) is not valid!')
 
     tt = Train_Test(logger, config.device, model_dir, config.training)
 
     if config.model.use_saved_model:  # saved_model_name should be present: for test
-        config.training.model_params.batch_size = extract_single_value(config.training.model_params.batch_size)
+        config.training.model_params.eval_batch_size = extract_single_value(config.training.model_params.eval_batch_size)
 
         model = tt.load(config.model.saved_model_name)
         tt.model = model
@@ -100,13 +110,14 @@ if __name__ == "__main__":
         results = []
         
         # train based on each combination
-        for batch_size, learning_rate, weight_decay, freeze_layer in grid_combinations:
+        for train_batch_size, eval_batch_size, learning_rate, weight_decay, freeze_layer in grid_combinations:
             logger.log_message("\n********************************************************************")
-            logger.log_message(f"Training with batch_size={batch_size}, learning_rate={learning_rate},"
+            logger.log_message(f"Training with batch_size={train_batch_size}, learning_rate={learning_rate},"
                         f" weight_decay={weight_decay}, freeze_layer={freeze_layer}")
 
             # Update model_params for this combination
-            config.training.model_params.batch_size = batch_size
+            config.training.model_params.train_batch_size = train_batch_size
+            config.training.model_params.eval_batch_size = eval_batch_size
             config.training.model_params.learning_rate = learning_rate
             config.training.model_params.weight_decay = weight_decay
             config.training.model_params.freeze_layers = freeze_layer
@@ -118,12 +129,12 @@ if __name__ == "__main__":
                 model_name = (f'fold-{fold}_freeze_layer-{serialize_array(freeze_layer)}'
                               f'_{serialize_dict(config.training.model_params)}')
 
-                project_name = f"{config.model.model_name}_{config.name}_{config.dataset_split.partition_mode}"
+                project_name = f"{config.model.model_name.replace('/', '_')}_{config.name}_{config.dataset_split.partition_mode}"
 
                 # Reload the model fresh each time for the current combination
                 if 'hyenadna' in config.model.model_name:
-                    tt.model = HyenaDNAModel(logger, pretrained_model_name=config.model.model_name,
-                                             use_head=True, device=config.device).load_pretrained_model()
+                    tt.model = (HyenaDNAModel(logger, pretrained_model_name=config.model.model_name, device=config.device)
+                                .load_pretrained_model())
                     ds_train = HyenaDNA_Dataset(dfs_train[fold - 1], config.model.max_length, config.model.use_padding)
                     ds_val = HyenaDNA_Dataset(dfs_val[fold - 1], config.model.max_length, config.model.use_padding)
 
@@ -138,6 +149,13 @@ if __name__ == "__main__":
                     tt.model = BERT_TFBS(config.model.max_length, config.model.pretrained_model_name,
                                          config.model.embedding_size, config.model.model_version)
                     project_name = str(config.model.model_version) + '_' + project_name
+
+                elif 'nucleotide-transformer' in config.model.model_name:
+                    tt.model = (
+                        AgroNTModel(logger, pretrained_model_name=config.model.model_name, device=config.device)
+                        .load_pretrained_model(config.model.finetune_type))
+                    ds_train = AgroNT_Dataset(tokenizer, dfs_train[fold - 1], config.model.max_length, config.model.use_padding)
+                    ds_val = AgroNT_Dataset(tokenizer, dfs_val[fold - 1], config.model.max_length, config.model.use_padding)
                 else:
                     raise ValueError(f'Given model name ({config.model.model_name}) is not valid!')
 
@@ -152,7 +170,8 @@ if __name__ == "__main__":
 
                 results.append({
                         'fold': fold,
-                        'batch_size': batch_size,
+                        'train_batch_size': train_batch_size,
+                        'eval_batch_size': eval_batch_size,
                         'learning_rate': learning_rate,
                         'weight_decay': weight_decay,
                         'freeze_layer': freeze_layer,
