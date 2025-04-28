@@ -81,15 +81,19 @@ if __name__ == "__main__":
                                                   config.dataset_split, label='label')
 
     if 'hyenadna' in config.model.model_name:
-        tokenizer = HyenaDNAModel.get_tokenizer(config.model.max_length)
+        tokenizer = (HyenaDNAModel(logger, pretrained_model_name=config.model.model_name, device=config.device)
+                     .get_tokenizer(config.model.max_length))
         ds_test = HyenaDNA_Dataset(tokenizer, df_test, config.model.max_length, config.model.use_padding)
     elif config.model.model_name == 'DeepBind':
         ds_test = DeepBindDataset(df_test, config.model.kernel_length)
     elif 'BERT-TFBS' in config.model.model_name:
-        tokenizer = BERT_TFBS.get_tokenizer()
+        tokenizer = (BERT_TFBS(config.model.max_length, config.model.pretrained_model_name,
+                                         config.model.embedding_size, config.model.model_version)
+                     .get_tokenizer())
         ds_test = BERT_TFBS_dataset(tokenizer, df_test, config.model.max_length)
     elif 'nucleotide-transformer' in config.model.model_name:
-        tokenizer = AgroNTModel.get_tokenizer()
+        tokenizer = (AgroNTModel(logger, pretrained_model_name=config.model.model_name, device=config.device)
+                     .get_tokenizer())
         ds_test = AgroNT_Dataset(tokenizer, df_test, config.model.max_length)
     else:
         raise ValueError(f'Given model name ({config.model.model_name}) is not valid!')
