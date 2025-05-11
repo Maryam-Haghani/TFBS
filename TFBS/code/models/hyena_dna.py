@@ -8,7 +8,7 @@ from standalone_hyenadna import CharacterTokenizer
 from huggingface import HyenaDNAPreTrainedModel
 
 class HyenaDNAModel:
-    def __init__(self, logger, pretrained_model_name, device, use_head):
+    def __init__(self, logger, pretrained_model_name, device, use_head=True):
         self.logger = logger
         self.pretrained_model_name = pretrained_model_name
         self.use_head = use_head

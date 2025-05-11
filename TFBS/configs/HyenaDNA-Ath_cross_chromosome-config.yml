@@ -1,40 +1,36 @@
-# standard_config.yml
-
-dataset_path: [ "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/Ronan-AtABF2_training_shuffle_neg_stride_201.csv",
-                "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/Josey-AtABF2_training_shuffle_neg_stride_201.csv" ]
+dataset_path: "../inputs/AtABFs_training_shuffle_neg_stride_200.csv"
 output_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/outputs"
 
-name: "AtABF2_cross_tr-Ronan_test-Josey"
+name: "AtABFs_cross_chromosome"
   
 dataset_split:
   dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/data_splits"
   test_split_type: "cross"  # Options: 'random' or 'cross'
   val_split_type: "n-fold" # Options: 'cross', 'n-fold' - can be 'cross' when test_split_type is 'cross', as well
-  id_column: "dataset"
-  val_ids: [] # should be assigned for 'val_split_type'='cross'
-  test_ids: ["Josey"] # should be assigned for 'test_split_type'='cross'
-  test_size: 0.2 # should be assigned for 'test_split_type'='random'
-  fold: 5 # should be > 1 for 'val_split_type'='n-fold'
+  id_column: "chromosomeId"
+  val_ids: [2] # should be assigned for 'cross' val_split_type
+  test_ids: [4] # should be assigned for 'cross' test_split_type
+  test_size: 0.2 # should be assigned for 'random' test_split_type
+  fold: 5 # should be > 1 for 'n-fold' val_split_type, else 1
   random_state: 436346
-  partition_mode: 'strict' # Options: 'relaxed' or 'strict'
+  partition_mode: 'relaxed' # Options: 'relaxed' or 'strict'
   sim: 0.9 # required when 'partition_mode' is strict
   word_size: 8 # required when 'partition_mode' is strict
 
 model:
-  use_padding: true
-  max_length: 201
   model_name: "hyenadna-tiny-1k-seqlen"
-      # 'hyenadna-tiny-1k-seqlen'
-      # 'hyenadna-tiny-1k-seqlen-d256'
-      # 'hyenadna-tiny-16k-seqlen-d128''
-      # 'hyenadna-small-32k-seqlen'
-      # 'hyenadna-medium-160k-seqlen'
-      # 'hyenadna-medium-450k-seqlen'
-      # 'hyenadna-large-1m-seqlen'
-  is_finetuned: true
+    # 'hyenadna-tiny-1k-seqlen'
+    # 'hyenadna-tiny-1k-seqlen-d256'
+    # 'hyenadna-tiny-16k-seqlen-d128''
+    # 'hyenadna-small-32k-seqlen'
+    # 'hyenadna-medium-160k-seqlen'
+  # 'hyenadna-medium-450k-seqlen'
+  # 'hyenadna-large-1m-seqlen'
+  use_padding: true
+  max_length: 350
   use_saved_model: false
-  saved_model_name: "fine-tuned_model_batch_size_32_learning_rate_1e-4_weight_decay_0.1_freeze_layers-.pt"
-  # "fine-tuned_model_batch_size_32_learning_rate_1e-4_weight_decay_0.1_freeze_layers-.pt"
+  saved_model_name: ""
+  finetune_type: "standard" # options: LoRA, standard
 
 device: "cuda"
   
@@ -43,7 +39,7 @@ training:
   adjustable_LR:
     enabled: false
   model_params:
-    batch_size: [32]
+    train_batch_size: [32]
     learning_rate: [1e-4]
     weight_decay: [0.1]
     freeze_layers: [ [ 'backbone' ], [ 'backbone.embeddings' ], [ 'backbone.layers' ], [ 'none' ] ]
@@ -52,11 +48,12 @@ training:
     # 'backbone.layers.[i]': Freezes a specific transformer block.
     # 'backbone'           : Freezes the entire backbone (embeddings + all transformer layers).
     # 'head'               : Freezes the output classification head.
+
 #    batch_size: [ 32, 64, 128, 256 ]
 #    learning_rate: [ 1e-6, 1e-5, 1e-4, 1e-3 ]
 #    weight_decay: [ 0.0, 0.01, 0.1 ]
   early_stopping:
-    patience: 5
+    patience: 10
     delta: 0.0
 
 wandb:
