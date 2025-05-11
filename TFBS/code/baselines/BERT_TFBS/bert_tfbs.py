@@ -166,7 +166,7 @@ class BERT_TFBS(nn.Module):
             self.model = CNNNET_V2(input_channel, embedding_size)
 
     def get_tokenizer(self):
-        self.tokenizer = AutoTokenizer.from_pretrained(
+        return AutoTokenizer.from_pretrained(
             self.pretrained_model_name, trust_remote_code=True)
 
     def forward(self, X):
