@@ -1,8 +1,9 @@
 import torch
 
 class DeepBindDataset(torch.utils.data.Dataset):
-    def __init__(self, df, kernel_length, sequence_column='sequence', label_column='label'):
+    def __init__(self, df, max_length, kernel_length, sequence_column='sequence', label_column='label'):
         self.df = df
+        self.max_length = max_length
         self.sequence_column = sequence_column
         self.label_column = label_column
         self.m = kernel_length
@@ -14,14 +15,27 @@ class DeepBindDataset(torch.utils.data.Dataset):
         sequence = self.df.iloc[idx][self.sequence_column]
         label = self.df.iloc[idx][self.label_column]
 
-        padded_sequence = self.pad(sequence)
+        padded_sequence = self.pad_or_trim_sequence(sequence)
+        padded_sequence = self.pad_to_kernel_size(padded_sequence)
         encoded_sequence = self.one_hot_encode(padded_sequence)
 
         label = torch.LongTensor([label])
 
         return sequence, encoded_sequence, label
 
-    def pad(self, sequence):
+    def pad_or_trim_sequence(self, sequence):
+        """
+        Pads the sequence with 'N' if it's shorter than max_length,
+        or trims it if it's longer.
+        """
+        if len(sequence) < self.max_length:
+            # pad with 'N's
+            return sequence + 'N' * (self.max_length - len(sequence))
+        else:
+            # tim
+            return sequence[:self.max_length]
+
+    def pad_to_kernel_size(self, sequence):
         """
         Pads 'N' to the left and right of the sequence with length n to have a length n + 2m - 2.
 

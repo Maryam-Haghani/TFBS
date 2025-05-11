@@ -21,6 +21,7 @@ dataset_split:
 model:
   model_name: "DeepBind"
   kernel_length: 24
+  max_length: 264
   use_saved_model: false
   saved_model_name: ""
 
