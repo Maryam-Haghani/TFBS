@@ -1,4 +1,5 @@
 import os
+import time
 import pandas as pd
 import numpy as np
 import torch
@@ -21,10 +22,10 @@ from utils import adjust_learning_rate
 class Train_Test:
     def __init__(self, logger, device, model_dir, training_params):
         self.logger = logger
-        
+
         self.device = device
         self.model_dir = model_dir
-        
+
         self.training = training_params
 
     # freeze specified layers by setting `requires_grad` to False.
@@ -123,7 +124,7 @@ class Train_Test:
         all_preds = np.concatenate(all_preds)
 
         # compute metrics
-        accuracy = 100.0 * correct / total if total > 0 else 0
+        accuracy = correct / total if total > 0 else 0
         try:
             auroc = roc_auc_score(all_labels, all_pos_probs)
         except ValueError:
@@ -132,12 +133,12 @@ class Train_Test:
         f1 = f1_score(all_labels, all_preds)
         mcc = matthews_corrcoef(all_labels, all_preds)
 
-        self.logger.log_message(f'Accuracy: {accuracy:.2f}%\n')
+        self.logger.log_message(f'Accuracy: {accuracy:.2f}\n')
         self.logger.log_message(f'AUROC:    {auroc:.2f}\n')
         self.logger.log_message(f'AUPRC:    {auprc:.2f}\n')
         self.logger.log_message(f'F1 Score: {f1:.2f}\n')
         self.logger.log_message(f'MCC:      {mcc:.2f}')
-        
+
         if loss_fn is not None:  # validating
             # average loss over all samples
             avg_test_loss = test_loss / total
@@ -164,8 +165,11 @@ class Train_Test:
         self.logger.log_message("Getting test set accuracy...")
 
         test_loader = DataLoader(ds_test, batch_size=self.training.model_params.eval_batch_size, shuffle=True)
+
+        start_time = time.time()  # START TEST TIME
         acc, auroc, auprc, f1, mcc  = self._test(test_loader, model_name, test_result_dir=test_result_dir)
-        return acc, auroc, auprc, f1, mcc
+        test_time = time.time() - start_time  # END TEST TIME
+        return acc, auroc, auprc, f1, mcc, test_time
 
     def train(self, ds_train, ds_val, model_name, wandb):
         self._freeze_layers()
@@ -202,6 +206,8 @@ class Train_Test:
             delta=self.training.early_stopping.delta
         )
 
+        start_time = time.time()  # START TRAINING TIME
+
         # training
         for epoch in range(self.training.num_epochs):
             self.logger.log_message(f'Epoch {epoch+1}/{self.training.num_epochs}')
@@ -228,6 +234,8 @@ class Train_Test:
                 self.logger.log_message(f"Early stopping triggered. Stopping training at epoch {epoch+1}.")
                 break
 
+        training_time = time.time() - start_time  # END TRAINING TIME
+
         if early_stopping.early_stop:
             best_epoch = early_stopping.best_epoch
         else:
@@ -243,7 +251,7 @@ class Train_Test:
             torch.save(self.model.state_dict(), model_path)
             self.logger.log_message(f"Best model saved as: {model_path}")
 
-        return f'{trainable_params} / {total_params}', best_epoch+1, val_acc, val_auroc, val_auprc, val_f1, val_mcc
+        return f'{trainable_params} / {total_params}', best_epoch+1, val_acc, val_auroc, val_auprc, val_f1, val_mcc, training_time
 
     # load the saved parameters to the model
     def load(self, model_name):
