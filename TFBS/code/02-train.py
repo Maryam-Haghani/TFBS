@@ -24,7 +24,7 @@ from baselines.DeepBind import DeepBind
 from baselines.BERT_TFBS.bert_tfbs import BERT_TFBS
 from baselines.agro_nt import AgroNTModel
 
-# python 02-train.py --config_file "../configs/standard_config.yml"
+# python 02-train.py --config_file [config_path]
 
 def _init_wandb(wandb_params, model, project_name, run_name):
     try:
@@ -48,12 +48,17 @@ if __name__ == "__main__":
 
     args = parse_arguments()
     config = load_config(args.config_file)
-    output_dir = os.path.join(config.output_dir, config.model.model_name.replace('/', '_'),
-                              config.model.finetune_type, config.name, config.dataset_split.partition_mode)
+
+    output_dir = os.path.join(config.output_dir, config.name, config.model.model_name.replace('/', '_'),
+                              config.dataset_split.partition_mode)
+    # if there's a non‐empty finetune_type, add it to output_dir
+    if getattr(config.model, 'finetune_type', None):
+        output_dir = os.path.join(config.output_dir, config.name, config.model.model_name.replace('/', '_'),
+                              config.model.finetune_type, config.dataset_split.partition_mode)
     # if there's a non‐empty model_version, add it to output_dir
     if getattr(config.model, 'model_version', None):
-        output_dir = os.path.join(config.output_dir, config.model.model_name.replace('/', '_'), config.model.model_version,
-                                  config.model.finetune_type, config.name, config.dataset_split.partition_mode)
+        output_dir = os.path.join(config.output_dir, config.name, config.model.model_name.replace('/', '_'),
+                                  config.model.model_version, config.dataset_split.partition_mode)
     os.makedirs(output_dir, exist_ok=True)
 
     # make sure eval_batch_size is defined; otherwise use train_batch_size
@@ -118,7 +123,7 @@ if __name__ == "__main__":
         results = []
 
         # train based on each combination
-        for train_batch_size, eval_batch_size, learning_rate, weight_decay, freeze_layer in grid_combinations:
+        for train_batch_size, learning_rate, weight_decay, freeze_layer, eval_batch_size in grid_combinations:
             logger.log_message("\n********************************************************************")
             logger.log_message(f"Training with batch_size={train_batch_size}, learning_rate={learning_rate},"
                         f" weight_decay={weight_decay}, freeze_layer={freeze_layer}")
@@ -134,8 +139,7 @@ if __name__ == "__main__":
             for fold in range(1, config.dataset_split.fold + 1):
                 logger.log_message(f'**** Fold {fold}')
 
-                model_name = (f'fold-{fold}_freeze_layer-{serialize_array(freeze_layer)}'
-                              f'_{serialize_dict(config.training.model_params)}')
+                model_name = (f'fold-{fold}_{serialize_dict(config.training.model_params)}')
 
                 project_name = f"{config.model.model_name.replace('/', '_')}_{config.name}_{config.dataset_split.partition_mode}"
 
@@ -201,8 +205,8 @@ if __name__ == "__main__":
                     'test_auprc': round(test_auprc, 2)
                 })
 
-if config.wandb.enabled:
-    wandb.finish()
+                if config.wandb.enabled:
+                    wandb.finish()
 
 # get metrics for test set
 df_results = pd.DataFrame(results)

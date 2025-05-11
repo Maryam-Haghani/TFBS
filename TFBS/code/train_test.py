@@ -144,8 +144,6 @@ class Train_Test:
             self.logger.log_message(f'\nValidation loss: {avg_test_loss:.4f}\n')
             return accuracy, auroc, auprc, f1, mcc, avg_test_loss
         else: # save test results
-            test_result_dir = os.path.join(test_result_dir, 'CSVs')
-            os.makedirs(test_result_dir, exist_ok=True)
             test_result_path = os.path.join(test_result_dir, f'{model_name}.csv')
             df = pd.DataFrame(results)
             df.to_csv(test_result_path, index=False)
