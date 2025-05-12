@@ -1,4 +1,4 @@
-dataset_path: "../inputs/AtABFs_training_shuffle_neg_stride_200.csv"
+dataset_path: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/AtABFs_training_shuffle_neg_stride_200.csv"
 output_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/outputs"
 
 name: "AtABFs_cross_chromosome_2_4"
@@ -18,27 +18,40 @@ dataset_split:
   word_size: 8 # required when 'partition_mode' is strict
 
 model:
-  model_name: "BERT-TFBS"
-  model_version: "V1"
+  model_name: "hyenadna-tiny-1k-seqlen"
+    # 'hyenadna-tiny-1k-seqlen'
+    # 'hyenadna-tiny-1k-seqlen-d256'
+    # 'hyenadna-tiny-16k-seqlen-d128''
+    # 'hyenadna-small-32k-seqlen'
+    # 'hyenadna-medium-160k-seqlen'
+  # 'hyenadna-medium-450k-seqlen'
+  # 'hyenadna-large-1m-seqlen'
+  use_padding: true
   max_length: 264
-  pretrained_model_name: "zhihan1996/DNABERT-2-117M" # the only DNA-BERT2 model
-  embedding_size: 768
-  use_saved_model: false # for testing
+  use_saved_model: false
   saved_model_name: ""
+  finetune_type: "standard" # options: LoRA, standard
 
 device: "cuda"
-
+  
 training:
-  num_epochs: 15
+  num_epochs: 60
   adjustable_LR:
-    enabled: true
-    max: 2e-6
-    min: 1.5e-5
+    enabled: false
   model_params:
     train_batch_size: [32]
-    learning_rate: [1.5e-5]
-    weight_decay: [1e-2]
-    freeze_layers: ['none']
+    learning_rate: [1e-4]
+    weight_decay: [0.1]
+    freeze_layers: [ [ 'backbone' ], [ 'backbone.embeddings' ], [ 'backbone.layers' ], [ 'none' ] ]
+    # 'backbone.embeddings': Freezes the embedding layer.
+    # 'backbone.layers'    : Freezes all transformer blocks.
+    # 'backbone.layers.[i]': Freezes a specific transformer block.
+    # 'backbone'           : Freezes the entire backbone (embeddings + all transformer layers).
+    # 'head'               : Freezes the output classification head.
+
+#    batch_size: [ 32, 64, 128, 256 ]
+#    learning_rate: [ 1e-6, 1e-5, 1e-4, 1e-3 ]
+#    weight_decay: [ 0.0, 0.01, 0.1 ]
   early_stopping:
     patience: 10
     delta: 0.0

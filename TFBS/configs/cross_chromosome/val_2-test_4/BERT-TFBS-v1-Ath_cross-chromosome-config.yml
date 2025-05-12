@@ -1,4 +1,4 @@
-dataset_path: "../inputs/AtABFs_training_shuffle_neg_stride_200.csv"
+dataset_path: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/AtABFs_training_shuffle_neg_stride_200.csv"
 output_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/outputs"
 
 name: "AtABFs_cross_chromosome_2_4"
@@ -18,25 +18,27 @@ dataset_split:
   word_size: 8 # required when 'partition_mode' is strict
 
 model:
-  model_name: "InstaDeepAI/agro-nucleotide-transformer-1b"
-  use_padding: true
+  model_name: "BERT-TFBS"
+  model_version: "V1"
   max_length: 264
-  use_saved_model: false
+  pretrained_model_name: "zhihan1996/DNABERT-2-117M" # the only DNA-BERT2 model
+  embedding_size: 768
+  use_saved_model: false # for testing
   saved_model_name: ""
-  finetune_type: "standard" # options: LoRA, standard
 
 device: "cuda"
 
 training:
-  num_epochs: 60
+  num_epochs: 15
   adjustable_LR:
-    enabled: false
+    enabled: true
+    max: 2e-6
+    min: 1.5e-5
   model_params:
-    train_batch_size: [8]
-    learning_rate: [1e-5]
-    weight_decay: [0.1]
+    train_batch_size: [32]
+    learning_rate: [1.5e-5]
+    weight_decay: [1e-2]
     freeze_layers: ['none']
-    eval_batch_size: [64]
   early_stopping:
     patience: 10
     delta: 0.0
