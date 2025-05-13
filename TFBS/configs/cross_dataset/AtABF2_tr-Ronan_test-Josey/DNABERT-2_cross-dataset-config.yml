@@ -1,34 +1,31 @@
-dataset_path: ["/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/AtABFs_training_shuffle_neg_stride_200.csv",
-               "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/SiABFs_training_shuffle_neg_stride_200.csv"]
+dataset_path: [ "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/Ronan-AtABF2_training_shuffle_neg_stride_201.csv",
+                "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/Josey-AtABF2_training_shuffle_neg_stride_201.csv" ]
 output_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/outputs"
 
-name: "ABFs_cross-species_tr-Si_test-At"
+name: "AtABF2_cross-dataset_tr-Ronan_test-Josey"
   
 dataset_split:
   dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/data_splits"
   test_split_type: "cross"  # Options: 'random' or 'cross'
-  val_split_type: "n-fold" # 'cross', 'n-fold': can be 'cross' when test_split_type is 'cross', as well
-  id_column: "species"
-  val_ids: [] # should be assigned for 'cross' val_split_type
-  test_ids: [ "Si" ] # should be assigned for 'cross' test_split_type
-  test_size: 0.2 # should be assigned for 'random' test_split_type
-  fold: 5 # should be > 1 for 'n-fold' val_split_type, else 1
-  random_state: 436346
+  val_split_type: "n-fold" # Options: 'cross', 'n-fold' - can be 'cross' when test_split_type is 'cross', as well
+  id_column: "dataset"
+  val_ids: [] # should be assigned for 'val_split_type'='cross'
+  test_ids: ["Josey"] # should be assigned for 'test_split_type'='cross'
+  test_size: 0.2 # should be assigned for 'test_split_type'='random'
+  fold: 5 # should be > 1 for 'val_split_type'='n-fold'
+  random_state: 41
   partition_mode: 'relaxed' # Options: 'relaxed' or 'strict'
   sim: 0.9 # required when 'partition_mode' is strict
   word_size: 8 # required when 'partition_mode' is strict
 
 model:
-  model_name: "BERT-TFBS"
-  model_version: "V1"
-  max_length: 264
-  pretrained_model_name: "zhihan1996/DNABERT-2-117M" # the only DNA-BERT2 model
-  embedding_size: 768
+  model_name: "DNABERT-2"
+  max_length: 201
   use_saved_model: false # for testing
   saved_model_name: ""
 
 device: "cuda"
-
+  
 training:
   num_epochs: 15
   adjustable_LR:
