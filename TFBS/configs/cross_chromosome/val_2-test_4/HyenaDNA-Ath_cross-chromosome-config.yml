@@ -18,7 +18,8 @@ dataset_split:
   word_size: 8 # required when 'partition_mode' is strict
 
 model:
-  model_name: "hyenadna-tiny-1k-seqlen"
+  model_name: "HyenaDNA"
+  model_version: "hyenadna-tiny-1k-seqlen"
     # 'hyenadna-tiny-1k-seqlen'
     # 'hyenadna-tiny-1k-seqlen-d256'
     # 'hyenadna-tiny-16k-seqlen-d128''

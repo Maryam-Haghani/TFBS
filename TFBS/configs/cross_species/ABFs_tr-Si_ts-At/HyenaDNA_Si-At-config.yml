@@ -19,7 +19,8 @@ dataset_split:
   word_size: 8 # required when 'partition_mode' is strict
   
 model:
-  model_name: "hyenadna-tiny-1k-seqlen"
+  model_name: "HyenaDNA"
+  model_version: "hyenadna-tiny-1k-seqlen"
   use_padding: true
   max_length: 264
   use_saved_model: false
