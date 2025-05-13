@@ -20,10 +20,7 @@ dataset_split:
 
 model:
   model_name: "BERT-TFBS"
-  model_version: "complete"
   max_length: 264
-  pretrained_model_name: "zhihan1996/DNABERT-2-117M" # the only DNA-BERT2 model
-  embedding_size: 768
   use_saved_model: false # for testing
   saved_model_name: ""
 
