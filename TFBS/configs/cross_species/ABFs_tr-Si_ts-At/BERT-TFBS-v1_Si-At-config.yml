@@ -1,5 +1,5 @@
-dataset_path: ["../inputs/AtABFs_training_shuffle_neg_stride_200.csv",
-               "../inputs/SiABFs_training_shuffle_neg_stride_200.csv"]
+dataset_path: ["/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/AtABFs_training_shuffle_neg_stride_200.csv",
+               "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/SiABFs_training_shuffle_neg_stride_200.csv"]
 output_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/outputs"
 
 name: "ABFs_cross-species_tr-Si_test-At"
