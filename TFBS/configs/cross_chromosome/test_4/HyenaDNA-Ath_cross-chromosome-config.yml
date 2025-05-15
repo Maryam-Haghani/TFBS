@@ -1,7 +1,7 @@
 dataset_path: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/AtABFs_training_shuffle_neg_stride_200.csv"
 output_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/outputs"
 
-name: "AtABFs_cross_chromosome_2_4"
+name: "AtABFs_cross_chromosome_4"
   
 dataset_split:
   dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/data_splits"

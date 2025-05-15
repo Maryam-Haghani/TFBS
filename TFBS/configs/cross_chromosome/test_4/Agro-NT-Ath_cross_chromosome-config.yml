@@ -1,7 +1,7 @@
 dataset_path: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/AtABFs_training_shuffle_neg_stride_200.csv"
 output_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/outputs"
 
-name: "AtABFs_cross_chromosome_2_4"
+name: "AtABFs_cross_chromosome_4"
   
 dataset_split:
   dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/data_splits"
@@ -18,23 +18,25 @@ dataset_split:
   word_size: 8 # required when 'partition_mode' is strict
 
 model:
-  model_name: "DeepBind"
-  kernel_length: 24
+  model_name: "AgroNT"
+  use_padding: true
   max_length: 264
   use_saved_model: false
   saved_model_name: ""
+  finetune_type: "standard" # options: LoRA, standard
 
 device: "cuda"
 
 training:
-  num_epochs: 200
+  num_epochs: 60
   adjustable_LR:
     enabled: false
   model_params:
-    train_batch_size: [64]
-    learning_rate: [1e-4]
-    weight_decay: [0.0001]
+    train_batch_size: [8]
+    learning_rate: [1e-5]
+    weight_decay: [0.1]
     freeze_layers: ['none']
+    eval_batch_size: [64]
   early_stopping:
     patience: 10
     delta: 0.0
