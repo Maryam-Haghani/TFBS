@@ -3,7 +3,7 @@ from transformers import AutoTokenizer
 from peft import LoraConfig, TaskType, get_peft_model
 
 class AgroNTModel:
-    def __init__(self, logger, pretrained_model_name, device):
+    def __init__(self, logger, device, pretrained_model_name="InstaDeepAI/agro-nucleotide-transformer-1b"):
         self.logger = logger
         self.pretrained_model_name = pretrained_model_name
         self.device = device

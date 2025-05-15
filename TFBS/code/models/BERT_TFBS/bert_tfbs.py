@@ -2,23 +2,20 @@ from transformers import AutoModel, AutoTokenizer
 from .cbam import *
 
 # linear module
-class ClassificationHead(nn.Module):
-    def __init__(self, embedding_size):
-        super(ClassificationHead, self).__init__()
-
-        self.linear = nn.Linear(embedding_size, 2)
-        # self.linear1 = nn.Linear(input_channel * embedding_size, input_channel)
-        # self.relu = nn.ReLU()
-        # self.drop = nn.Dropout(0.5)
-        # self.linear2 = nn.Linear(input_channel, 2)
+class CNNNET_V1(nn.Module):
+    def __init__(self, input_channel, embedding_size):
+        super(CNNNET_V1, self).__init__()
+        self.linear1 = nn.Linear(input_channel * embedding_size, input_channel)
+        self.relu = nn.ReLU()
+        self.drop = nn.Dropout(0.5)
+        self.linear2 = nn.Linear(input_channel, 2)
 
     def forward(self, x):
-        x = self.linear(x)
-        # x = x.view(x.shape[0], -1)
-        # x = self.linear1(x)
-        # x = self.relu(x)
-        # x = self.drop(x)
-        # x = self.linear2(x)
+        x = x.view(x.shape[0], -1)
+        x = self.linear1(x)
+        x = self.relu(x)
+        x = self.drop(x)
+        x = self.linear2(x)
         return x
 
 # CNN module
@@ -150,7 +147,8 @@ class CNNNET_complete(nn.Module):
         return x
 
 class BERT_TFBS(nn.Module):
-    def __init__(self, input_channel, pretrained_model_name, embedding_size, model_version):
+    def __init__(self, input_channel, pretrained_model_name="zhihan1996/DNABERT-2-117M",
+                 embedding_size=768, model_version='complete'):
         super(BERT_TFBS, self).__init__()
         self.pretrained_model_name = pretrained_model_name
         self.bert = AutoModel.from_pretrained(pretrained_model_name, trust_remote_code=True)
@@ -161,7 +159,7 @@ class BERT_TFBS(nn.Module):
         if self.model_version == 'complete':
             self.model = CNNNET_complete(input_channel, embedding_size)
         elif self.model_version == 'V1':
-            self.model = ClassificationHead(embedding_size)
+            self.model = CNNNET_V1(input_channel, embedding_size)
         elif self.model_version == 'V2':
             self.model = CNNNET_V2(input_channel, embedding_size)
 
@@ -172,10 +170,5 @@ class BERT_TFBS(nn.Module):
     def forward(self, X):
         outputs = self.bert(X)
         last_hidden_state = outputs[0] # of shape (batch_size, sequence_length, embedding_size)
-
-        if self.model_version == "V1":
-            mean_embeddings = torch.mean(last_hidden_state, dim=1) # mean across sequence_length: of shape (batch_size, embedding_size)
-            logits = self.model(mean_embeddings)
-        else:
-            logits = self.model(last_hidden_state)
+        logits = self.model(last_hidden_state)
         return logits

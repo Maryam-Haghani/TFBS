@@ -1,7 +1,7 @@
 import torch
 import torch.utils.data as Data
 
-class BERT_TFBS_dataset(Data.Dataset):
+class DNABERT2_dataset(Data.Dataset):
     def __init__(self, tokenizer, df, max_length):
         self.tokenizer = tokenizer
         self.df = df

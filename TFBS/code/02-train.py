@@ -8,21 +8,22 @@ from datetime import datetime
 import wandb
 
 from logger import CustomLogger
-from utils import load_config, serialize_dict, serialize_array, extract_single_value
+from utils import load_config, serialize_dict, extract_single_value
 
 from data_split import DataSplit
 
 from datasets.deepbind_dataset import DeepBindDataset
 from datasets.hyenadna_dataset import HyenaDNA_Dataset
-from datasets.bert_tfbs_dataset import BERT_TFBS_dataset
+from datasets.dnabert2_dataset import DNABERT2_dataset
 from datasets.agro_nt_dataset import AgroNT_Dataset
 
 from train_test import Train_Test
 
 from models.hyena_dna import HyenaDNAModel
-from baselines.DeepBind import DeepBind
-from baselines.BERT_TFBS.bert_tfbs import BERT_TFBS
-from baselines.agro_nt import AgroNTModel
+from models.dna_bert_2 import DNABERT2
+from models.deep_bind import DeepBind
+from models.BERT_TFBS.bert_tfbs import BERT_TFBS
+from models.agro_nt import AgroNTModel
 
 # python 02-train.py --config_file [config_path]
 
@@ -49,15 +50,15 @@ if __name__ == "__main__":
     args = parse_arguments()
     config = load_config(args.config_file)
 
-    output_dir = os.path.join(config.output_dir, config.name, config.model.model_name.replace('/', '_'),
+    output_dir = os.path.join(config.output_dir, config.name, config.model.model_name,
                               config.dataset_split.partition_mode)
     # if there's a non‐empty finetune_type, add it to output_dir
     if getattr(config.model, 'finetune_type', None):
-        output_dir = os.path.join(config.output_dir, config.name, config.model.model_name.replace('/', '_'),
+        output_dir = os.path.join(config.output_dir, config.name, config.model.model_name,
                               config.model.finetune_type, config.dataset_split.partition_mode)
     # if there's a non‐empty model_version, add it to output_dir
     if getattr(config.model, 'model_version', None):
-        output_dir = os.path.join(config.output_dir, config.name, config.model.model_name.replace('/', '_'),
+        output_dir = os.path.join(config.output_dir, config.name, config.model.model_name,
                                   config.model.model_version, config.dataset_split.partition_mode)
     os.makedirs(output_dir, exist_ok=True)
 
@@ -85,20 +86,21 @@ if __name__ == "__main__":
                                                   os.path.join(config.dataset_split.dir, config.name),
                                                   config.dataset_split, label='label')
 
-    if 'hyenadna' in config.model.model_name:
-        tokenizer = (HyenaDNAModel(logger, pretrained_model_name=config.model.model_name, device=config.device)
+    if config.model.model_name == "HyenaDNA":
+        tokenizer = (HyenaDNAModel(logger, pretrained_model_name=config.model.model_version, device=config.device)
                      .get_tokenizer(config.model.max_length))
         ds_test = HyenaDNA_Dataset(tokenizer, df_test, config.model.max_length, config.model.use_padding)
     elif config.model.model_name == 'DeepBind':
         ds_test = DeepBindDataset(df_test, config.model.max_length, config.model.kernel_length)
-    elif 'BERT-TFBS' in config.model.model_name:
-        tokenizer = (BERT_TFBS(config.model.max_length, config.model.pretrained_model_name,
-                                         config.model.embedding_size, config.model.model_version)
+    elif config.model.model_name == 'BERT-TFBS':
+        tokenizer = (BERT_TFBS(config.model.max_length)
                      .get_tokenizer())
-        ds_test = BERT_TFBS_dataset(tokenizer, df_test, config.model.max_length)
-    elif 'nucleotide-transformer' in config.model.model_name:
-        tokenizer = (AgroNTModel(logger, pretrained_model_name=config.model.model_name, device=config.device)
-                     .get_tokenizer())
+        ds_test = DNABERT2_dataset(tokenizer, df_test, config.model.max_length)
+    elif config.model.model_name == 'DNABERT-2':
+        tokenizer = (DNABERT2().get_tokenizer())
+        ds_test = DNABERT2_dataset(tokenizer, df_test, config.model.max_length)
+    elif config.model.model_name == "AgroNT":
+        tokenizer = AgroNTModel(logger, device=config.device).get_tokenizer()
         ds_test = AgroNT_Dataset(tokenizer, df_test, config.model.max_length)
     else:
         raise ValueError(f'Given model name ({config.model.model_name}) is not valid!')
@@ -141,32 +143,35 @@ if __name__ == "__main__":
 
                 model_name = (f'fold-{fold}_{serialize_dict(config.training.model_params)}')
 
-                project_name = f"{config.model.model_name.replace('/', '_')}_{config.name}_{config.dataset_split.partition_mode}"
+                project_name = f"{config.model.model_name}_{config.name}_{config.dataset_split.partition_mode}"
 
                 # Reload the model fresh each time for the current combination
-                if 'hyenadna' in config.model.model_name:
-                    tt.model = (HyenaDNAModel(logger, pretrained_model_name=config.model.model_name, device=config.device)
+                if config.model.model_name == "HyenaDNA":
+                    tt.model = (HyenaDNAModel(logger, pretrained_model_name=config.model.model_version, device=config.device)
                         .load_pretrained_model())
                     ds_train = HyenaDNA_Dataset(tokenizer, dfs_train[fold - 1],
                                                 config.model.max_length, config.model.use_padding)
                     ds_val = HyenaDNA_Dataset(tokenizer, dfs_val[fold - 1],
                                               config.model.max_length, config.model.use_padding)
+                    project_name = config.model.model_version + '_' + project_name
 
                 elif config.model.model_name == 'DeepBind':
                     tt.model = DeepBind(config.model.kernel_length)
                     ds_train = DeepBindDataset(dfs_train[fold - 1], config.model.max_length, config.model.kernel_length)
                     ds_val = DeepBindDataset(dfs_val[fold - 1], config.model.max_length, config.model.kernel_length)
 
-                elif 'BERT-TFBS' in config.model.model_name:
-                    ds_train = BERT_TFBS_dataset(tokenizer, dfs_train[fold - 1], config.model.max_length)
-                    ds_val = BERT_TFBS_dataset(tokenizer, dfs_val[fold - 1], config.model.max_length)
-                    tt.model = BERT_TFBS(config.model.max_length, config.model.pretrained_model_name,
-                                         config.model.embedding_size, config.model.model_version)
-                    project_name = str(config.model.model_version) + '_' + project_name
+                elif config.model.model_name == 'BERT-TFBS':
+                    ds_train = DNABERT2_dataset(tokenizer, dfs_train[fold - 1], config.model.max_length)
+                    ds_val = DNABERT2_dataset(tokenizer, dfs_val[fold - 1], config.model.max_length)
+                    tt.model = BERT_TFBS(config.model.max_length)
 
-                elif 'nucleotide-transformer' in config.model.model_name:
-                    tt.model = (
-                        AgroNTModel(logger, pretrained_model_name=config.model.model_name, device=config.device)
+                elif config.model.model_name == 'DNABERT-2':
+                    ds_train = DNABERT2_dataset(tokenizer, dfs_train[fold - 1], config.model.max_length)
+                    ds_val = DNABERT2_dataset(tokenizer, dfs_val[fold - 1], config.model.max_length)
+                    tt.model = DNABERT2()
+
+                elif config.model.model_name=="AgroNT":
+                    tt.model = (AgroNTModel(logger, device=config.device)
                         .load_pretrained_model(config.model.finetune_type))
                     ds_train = AgroNT_Dataset(tokenizer, dfs_train[fold - 1], config.model.max_length,
                                               config.model.use_padding)

@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 from embedding import Embedding
 from datasets.hyenadna_dataset import HyenaDNA_Dataset
-from models.hyena_dna import HyenaDNAModel
+from TFBS.code.baselines.hyena_dna import HyenaDNAModel
 
 hyena_dna_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../hyena-dna"))
 sys.path.insert(0, hyena_dna_dir)
@@ -58,5 +58,5 @@ if __name__ == "__main__":
 
     ds = HyenaDNA_Dataset(df, tokenizer, config.model.max_length, config.model.use_padding)
     
-    embd = Embedding(is_finetuned, embedding_dir, config.device)
-    emdb.generate(ds)
+    # embd = Embedding(is_finetuned, embedding_dir, config.device)
+    # emdb.generate(ds)
