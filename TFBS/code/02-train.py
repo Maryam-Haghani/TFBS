@@ -59,14 +59,15 @@ if __name__ == "__main__":
     # if there's a non‐empty model_version, add it to output_dir
     if getattr(config.model, 'model_version', None):
         output_dir = os.path.join(config.output_dir, config.name, config.model.model_name,
-                                  config.model.model_version, config.dataset_split.partition_mode)
+                                  config.model.model_version, config.model.finetune_type,
+                                  config.dataset_split.partition_mode)
     os.makedirs(output_dir, exist_ok=True)
 
     # make sure eval_batch_size is defined; otherwise use train_batch_size
     if not getattr(config.training.model_params, 'eval_batch_size', None):
         config.training.model_params.eval_batch_size = config.training.model_params.train_batch_size
 
-    logger = CustomLogger(__name__, log_directory=output_dir, log_file=f'log')
+    logger = CustomLogger(__name__, log_directory=output_dir, log_file=f'log_dataset')
 
     logger.log_message(f"Configuration loaded: {config}")
 
