@@ -13,7 +13,7 @@ def create_fasta(logger, df, temp_dir):
     Each row in the DataFrame must have columns:
         - 'species'
         - 'chromosome' (or 'chromosomeId' if that's your actual column name)
-        - 'dataset'
+        - 'origin'
         - 'label'
         - 'sequence'
 
@@ -166,7 +166,7 @@ def process_clusters(cd_hit_clstr_file):
 
     df = pd.DataFrame(parsed_data, columns=["cluster", "entity", "is_representative", "sequence_similarity"])
     df['entity'] = df['entity'].str.replace('...', '', regex=False)
-    df[['row index', 'species', 'chromosomeId', 'dataset', 'label', '_in_test']] = df['entity'].str.split('_', expand=True)
+    df[['row index', 'species', 'chromosomeId', 'origin', 'label', '_in_test']] = df['entity'].str.split('_', expand=True)
     df['label'] = df['label'].astype(int)
     return df
 
@@ -247,9 +247,10 @@ def handle_inter_train_test_similarity(logger, df, sim, word_size, temp_dir):
     logger.log_message(f"Original size: {df['_in_test'].value_counts()}")
 
     df["row index"] = df.index + 1
+    df['chromosomeId'] = df['chromosomeId'].str.replace('_', '-')
     df['entity'] = df.apply(
         lambda
-            row: f"{row['row index']}_{row['species']}_{row['chromosomeId']}_{row['dataset']}_{row['label']}_{row['_in_test']}",
+            row: f"{row['row index']}_{row['species']}_{row['chromosomeId']}_{row['origin']}_{row['label']}_{row['_in_test']}",
         axis=1
     )
 
