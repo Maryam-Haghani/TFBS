@@ -110,6 +110,7 @@ class DataSplit:
         for path in dataset_paths:
             self.logger.log_message(f"'------------------'\nDataset '{path}':")
             df = pd.read_csv(path)
+            df['origin'] = (path.split('/')[-1].split('.')[0]).replace('_', '-')
             # add column 1 for train, 0 for test, if known to use that to prioritize keeping training data
             if self.dataset_split.test_split_type == 'cross':
                 df['_in_test'] = df[self.dataset_split.id_column].isin(self.dataset_split.test_ids).astype(int)
@@ -129,7 +130,7 @@ class DataSplit:
     def _get_unique(self, df):
         self.logger.log_message(f'Original number of rows: {len(df)}')
 
-        subset = ['chromosomeId', 'sequence']
+        subset = ['sequence']#['chromosomeId', 'sequence']
         redundant_df = df[df.duplicated(subset=subset, keep=False)]
         self.logger.log_message(f'Number of duplicate rows for {subset}: {len(redundant_df)}'
                                 f'\nNeed to remove {len(redundant_df)//2} rows, prioritizing training data if known...')
