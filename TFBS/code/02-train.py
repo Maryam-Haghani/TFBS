@@ -67,7 +67,7 @@ if __name__ == "__main__":
     if not getattr(config.training.model_params, 'eval_batch_size', None):
         config.training.model_params.eval_batch_size = config.training.model_params.train_batch_size
 
-    logger = CustomLogger(__name__, log_directory=output_dir, log_file=f'log_dataset')
+    logger = CustomLogger(__name__, log_directory=output_dir, log_file=f'log')
 
     logger.log_message(f"Configuration loaded: {config}")
 
