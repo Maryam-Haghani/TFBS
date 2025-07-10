@@ -10,7 +10,6 @@ Example usage
 python 01-generate_samples.py --fasta_file path/to/your.fasta --peak_file path/to/peaks.csv --output_file path/to/output.csv --neg_type shuffle -- species SI/ATA
 
 python 01-generate_samples.py --fasta_file ../inputs/fastas/Arabidopsis_thaliana.TAIR10.dna_sm.toplevel.fa --peak_file ../inputs/peak_files/AtABFs_DAP-Seq_peaks.csv --output_file ../inputs/AtABFs_training_shuffle_neg_stride_200.csv
-python 01-generate_samples.py --fasta_file ../inputs/fastas/Si_sequence --peak_file ../inputs/peak_files/SiABFs_DAP-Seq_peaks.csv --species "Si" --output_file ../inputs/SiABFs_training_shuffle_neg_stride_200.csv
 
 """
 
@@ -19,7 +18,8 @@ def parse_arguments():
     parser.add_argument("--fasta_file", type=str, required=True, help="Path to the input FASTA file.")
     parser.add_argument("--peak_file", type=str, required=True, help="Path to the CSV file containing peaks.")
     parser.add_argument("--output_file", type=str, required=True, help="Path to save the output CSV file.")
-    parser.add_argument("--neg_type", type=str, choices=["shuffle", "random"], required=False, default="shuffle")
+    parser.add_argument("--neg_type", type=str, choices=["dinuc_shuffle","shuffle", "random", "matched"], required=False, default="shuffle")
+    parser.add_argument("--bed_path", type=str, required=False, default=".")
     parser.add_argument("--species", type=str, choices=["Si", "At"], required=False,  default="At", help="Species type: Si or At")
     parser.add_argument("--dataset", type=str, choices=["Josey", "Ronan"], required=True, help="Origin of Dataset")
     parser.add_argument("--sliding_window", type=int, required=False, default=200)
@@ -52,6 +52,7 @@ def load_fasta_sequences(fasta_file):
 
 def generate_positive_samples(peaks_df, fasta_sequences, species, sliding_window, fixed_length):
     positive_samples = []
+    peaks = []
     not_found = 0
 
     for ind, row in peaks_df.iterrows():
@@ -99,6 +100,7 @@ def generate_positive_samples(peaks_df, fasta_sequences, species, sliding_window
                 print(f'all bases for row {ind+1} in peak file is N.\nIgnoring the row...')
             else:
                 positive_samples.append(((str(sequence)).upper(), chrom_id))  # Include chrom_id
+                peaks.append(full_sequence[start:end])
         else:
             print(f"{chrom_id} not in fasta file!")
             not_found +=1
@@ -108,19 +110,30 @@ def generate_positive_samples(peaks_df, fasta_sequences, species, sliding_window
     else:
         print(f"sequence regarding to {not_found} / {len(peaks_df)} rows has not been found in fasta file...")
 
-    return positive_samples
+    return positive_samples, peaks
 
 
 def generate_negative_samples(positive_samples, neg_type, fasta_sequences=None):
     negative_samples = []
+    if neg_type == "random":
+        # concatenate all sequences in fasta_sequences
+        all_sequences = "".join(
+            str(record.seq) for record in fasta_sequences.values())
 
     for sequence, chrom_id in positive_samples:
+        # shuffling the original sequence
         if neg_type == "shuffle":
-            neg_seq = "".join(random.sample(sequence, len(sequence)))
+            neg_seq = "".join(random.sample(sequence, len(sequence))) # picks all letters but in random order
+        elif neg_type == "dinuc_shuffle":
+            from ushuffle import shuffle, Shuffler
+            neg_seq = shuffle(sequence.encode('utf-8'), 2).decode('utf-8')
+        # picking a random sequence from the fasta_sequences
         elif neg_type == "random":
-            all_sequences = "".join(str(record.seq) for record in fasta_sequences.values())
+            # pick a random start position within all_sequences
             start = random.randint(0, len(all_sequences) - len(sequence))
             neg_seq = all_sequences[start:start + len(sequence)]
+        else:
+            raise  ValueError(f"Given neg_type:{neg_type} is invalid!")
 
         negative_samples.append((neg_seq, chrom_id))
 
@@ -138,25 +151,34 @@ def main():
 
     # Generate positive and negative samples
     print("Generating positive samples...")
-    positive_samples = generate_positive_samples(peaks_df, fasta_sequences, args.species,
+    if args.neg_type == "matched":
+        bed_path = args.bed_path
+        with open(bed_path, 'w') as bed_file:
+            for _, row in peaks_df.iterrows():
+                chrom = row['ChrID']
+                start = int(row['start']) - 1  # convert to 0-based
+                end = int(row['end'])
+                bed_file.write(f"{chrom}\t{start}\t{end}\n")
+    else:
+        positive_samples, peaks = generate_positive_samples(peaks_df, fasta_sequences, args.species,
                                                  args.sliding_window, args.fixed_length)
-    print(f"number of positive samples: {len(positive_samples)}")
+        print(f"number of positive samples: {len(positive_samples)}")
+        print("Generating negative samples...")
+        negative_samples = generate_negative_samples(positive_samples, args.neg_type, fasta_sequences)
+        print(f"number of negative samples: {len(negative_samples)}")
 
-    print("Generating negative samples...")
-    negative_samples = generate_negative_samples(positive_samples, args.neg_type, fasta_sequences)
-    print(f"number of negative samples: {len(negative_samples)}")
+        # Combine into a DataFrame and save
+        data = pd.DataFrame({
+            "species": [args.species] * (len(positive_samples) + len(negative_samples)),
+            "chromosomeId": [chrom for _, chrom in positive_samples + negative_samples],
+            'dataset': [args.dataset] * (len(positive_samples) + len(negative_samples)),
+            "peak": [peak for peak in peaks + peaks],
+            "sequence": [seq for seq, _ in positive_samples + negative_samples],
+            "label": [1] * len(positive_samples) + [0] * len(negative_samples)
+        })
 
-    # Combine into a DataFrame and save
-    data = pd.DataFrame({
-        "species": [args.species] * (len(positive_samples) + len(negative_samples)),
-        "chromosomeId": [chrom for _, chrom in positive_samples + negative_samples],
-        'dataset': [args.dataset] * (len(positive_samples) + len(negative_samples)),
-        "sequence": [seq for seq, _ in positive_samples + negative_samples],
-        "label": [1] * len(positive_samples) + [0] * len(negative_samples)
-    })
-    
-    data.to_csv(args.output_file, index=False)
-    print(f"Output saved to {args.output_file}")
+        data.to_csv(args.output_file, index=False)
+        print(f"Output saved to {args.output_file}")
 
 
 if __name__ == "__main__":
