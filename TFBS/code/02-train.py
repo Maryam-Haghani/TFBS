@@ -49,39 +49,46 @@ if __name__ == "__main__":
 
     args = parse_arguments()
     config = load_config(args.config_file)
-
-    output_dir = os.path.join(config.output_dir, config.name, config.model.model_name,
-                              config.dataset_split.partition_mode)
-    # if there's a non‐empty finetune_type, add it to output_dir
-    if getattr(config.model, 'finetune_type', None):
+    output_dir = ""
+    if not config.model.use_saved_model:
         output_dir = os.path.join(config.output_dir, config.name, config.model.model_name,
-                              config.model.finetune_type, config.dataset_split.partition_mode)
-    # if there's a non‐empty model_version, add it to output_dir
-    if getattr(config.model, 'model_version', None):
-        output_dir = os.path.join(config.output_dir, config.name, config.model.model_name,
-                                  config.model.model_version, config.model.finetune_type,
                                   config.dataset_split.partition_mode)
-    os.makedirs(output_dir, exist_ok=True)
+        # if there's a non‐empty finetune_type, add it to output_dir
+        if getattr(config.model, 'finetune_type', None):
+            output_dir = os.path.join(config.output_dir, config.name, config.model.model_name,
+                                  config.model.finetune_type, config.dataset_split.partition_mode)
+        # if there's a non‐empty model_version, add it to output_dir
+        if getattr(config.model, 'model_version', None):
+            output_dir = os.path.join(config.output_dir, config.name, config.model.model_name,
+                                      config.model.model_version, config.model.finetune_type,
+                                      config.dataset_split.partition_mode)
+        os.makedirs(output_dir, exist_ok=True)
+
+        model_dir = os.path.join(output_dir, "models")
+        os.makedirs(model_dir, exist_ok=True)
+
+    else: # config.model.use_saved_model
+        output_dir = os.path.join(config.model.saved_model_parent_dir, 'test', config.dataset_split.partition_mode)
+        os.makedirs(output_dir, exist_ok=True)
+
+        model_dir = config.model.saved_model_parent_dir
+
+    test_result_dir = os.path.join(output_dir, "test_results")
+    os.makedirs(test_result_dir, exist_ok=True)
 
     # make sure eval_batch_size is defined; otherwise use train_batch_size
     if not getattr(config.training.model_params, 'eval_batch_size', None):
         config.training.model_params.eval_batch_size = config.training.model_params.train_batch_size
 
     logger = CustomLogger(__name__, log_directory=output_dir, log_file=f'log')
-
     logger.log_message(f"Configuration loaded: {config}")
+    logger.log_message(f"Output will save at: {output_dir}")
 
     config.device = "cuda" if torch.cuda.is_available() and config.device == "cuda" else "cpu"
     logger.log_message("Using device:", config.device)
 
     torch.manual_seed(config.dataset_split.random_state)
     torch.cuda.manual_seed_all(config.dataset_split.random_state)
-
-    model_dir = os.path.join(output_dir, "models")
-    os.makedirs(model_dir, exist_ok=True)
-
-    test_result_dir = os.path.join(output_dir, "test_results")
-    os.makedirs(test_result_dir, exist_ok=True)
 
     dfs_train, dfs_val, df_test = DataSplit.split(logger, config.dataset_path,
                                                   os.path.join(config.dataset_split.dir, config.name),
@@ -108,22 +115,52 @@ if __name__ == "__main__":
 
     tt = Train_Test(logger, config.device, model_dir, config.training)
 
-    if config.model.use_saved_model:  # saved_model_name should be present: for test
+    results = []
+
+    if config.model.use_saved_model:  # saved_model_path should be present: for test
+        logger.log_message(f'Using saved model(s) for prediction...')
+
         config.training.model_params.eval_batch_size = extract_single_value(
             config.training.model_params.eval_batch_size)
 
-        model = tt.load(config.model.saved_model_name)
-        tt.model = model
-        test_accuracy, test_auroc, test_auprc, test_f1, test_mcc \
-            = tt.test(ds_test, config.model.saved_model_name, test_result_dir)
+        # Reload the model fresh each time for the current combination
+        if config.model.model_name == "HyenaDNA":
+            tt.model = (HyenaDNAModel(logger, pretrained_model_name=config.model.model_version, device=config.device)
+                        .load_pretrained_model())
+        elif config.model.model_name == 'DeepBind':
+            tt.model = DeepBind(config.model.kernel_length)
+        elif config.model.model_name == 'BERT-TFBS':
+            tt.model = BERT_TFBS(config.model.max_length)
+
+        elif config.model.model_name == 'DNABERT-2':
+            tt.model = DNABERT2()
+
+        elif config.model.model_name == "AgroNT":
+            tt.model = (AgroNTModel(logger, device=config.device)
+                        .load_pretrained_model(config.model.finetune_type))
+        else:
+            raise ValueError(f'Given model name ({config.model.model_name}) is not valid!')
+
+        for model_name in config.model.saved_model_name:
+            model = tt.load(model_name)
+            test_accuracy, test_auroc, test_auprc, test_f1, test_mcc, test_time \
+                = tt.test(ds_test, model_name, test_result_dir)
+
+            results.append({
+                'model_name': model_name,
+                'test_accuracy': round(test_accuracy, 2),
+                'test_f1': round(test_f1, 2),
+                'test_mcc': round(test_mcc, 2),
+                'test_auroc': round(test_auroc, 2),
+                'test_auprc': round(test_auprc, 2),
+                'test_time(s)': test_time
+            })
 
     else: # training
         model_param_values = list(vars(config.training.model_params).values())
         grid_combinations = list(product(*model_param_values))
 
         logger.log_message(f'There are {len(grid_combinations)} combination of parameters...')
-
-        results = []
 
         # train based on each combination
         for train_batch_size, learning_rate, weight_decay, freeze_layer, eval_batch_size in grid_combinations:
