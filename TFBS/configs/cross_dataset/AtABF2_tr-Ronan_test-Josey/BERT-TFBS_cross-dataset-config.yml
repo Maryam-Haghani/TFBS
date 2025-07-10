@@ -22,7 +22,7 @@ model:
   model_name: "BERT-TFBS"
   max_length: 201
   use_saved_model: false # for testing
-  saved_model_name: ""
+  saved_model_path: ""
 
 device: "cuda"
   

@@ -1,18 +1,17 @@
-dataset_path: [ "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/Ronan-AtABF2_training_shuffle_neg_stride_201.csv",
-                "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/Josey-AtABF2_training_shuffle_neg_stride_201.csv" ]
+dataset_path: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/SiABFs_training_shuffle_neg_stride_200.csv"
 output_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/outputs"
 
-name: "AtABF2_cross-dataset_tr-Ronan_test-Josey"
+name: "SiABFs_random"
   
 dataset_split:
   dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/data_splits"
-  test_split_type: "cross"  # Options: 'random' or 'cross'
+  test_split_type: "random"  # Options: 'random' or 'cross'
   val_split_type: "n-fold" # Options: 'cross', 'n-fold' - can be 'cross' when test_split_type is 'cross', as well
-  id_column: "dataset"
-  val_ids: [] # should be assigned for 'val_split_type'='cross'
-  test_ids: ["Josey"] # should be assigned for 'test_split_type'='cross'
-  test_size: 0.2 # should be assigned for 'test_split_type'='random'
-  fold: 5 # should be > 1 for 'val_split_type'='n-fold'
+  id_column: "chromosomeId"
+  val_ids: [] # should be assigned for 'cross' val_split_type
+  test_ids: [] # should be assigned for 'cross' test_split_type
+  test_size: 0.2 # should be assigned for 'random' test_split_type
+  fold: 5 # should be > 1 for 'n-fold' val_split_type, else 1
   random_state: 436346
   partition_mode: 'relaxed' # Options: 'relaxed' or 'strict'
   sim: 0.9 # required when 'partition_mode' is strict
@@ -23,10 +22,10 @@ model:
   kernel_length: 24
   max_length: 264
   use_saved_model: false
-  saved_model_path: ""
+  saved_model_name: ""
 
 device: "cuda"
-  
+
 training:
   num_epochs: 200
   adjustable_LR:

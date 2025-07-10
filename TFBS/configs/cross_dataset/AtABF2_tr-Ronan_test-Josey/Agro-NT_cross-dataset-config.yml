@@ -23,7 +23,7 @@ model:
   use_padding: true
   max_length: 201
   use_saved_model: false
-  saved_model_name: ""
+  saved_model_path: ""
   finetune_type: "standard" # options: LoRA, standard
 
 device: "cuda"
