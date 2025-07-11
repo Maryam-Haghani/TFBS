@@ -17,14 +17,15 @@ from sklearn.metrics import (
 
 from early_stop import EarlyStopping
 from visualization import plot_roc_pr
-from utils import adjust_learning_rate
+from utils import adjust_learning_rate, load_model
 
 class Train_Test:
-    def __init__(self, logger, device, model_dir, training_params):
+    def __init__(self, logger, device, model_dir, eval_batch_size, training_params=None):
         self.logger = logger
 
         self.device = device
         self.model_dir = model_dir
+        self.eval_batch_size = eval_batch_size
 
         self.training = training_params
 
@@ -162,9 +163,7 @@ class Train_Test:
 
     # compute metrics for test dataset
     def test(self, ds_test, model_name, test_result_dir):
-        self.logger.log_message("Getting test set accuracy...")
-
-        test_loader = DataLoader(ds_test, batch_size=self.training.model_params.eval_batch_size, shuffle=True)
+        test_loader = DataLoader(ds_test, batch_size=self.eval_batch_size, shuffle=True)
 
         start_time = time.time()  # START TEST TIME
         acc, auroc, auprc, f1, mcc  = self._test(test_loader, model_name, test_result_dir=test_result_dir)
@@ -187,7 +186,7 @@ class Train_Test:
 
         self.logger.log_message(f"Training...")
         train_loader = DataLoader(ds_train, batch_size=self.training.model_params.train_batch_size, shuffle=True)
-        val_loader = DataLoader(ds_val, batch_size=self.training.model_params.eval_batch_size, shuffle=False)
+        val_loader = DataLoader(ds_val, batch_size=self.eval_batch_size, shuffle=False)
 
         loss_fn = nn.CrossEntropyLoss()
 
@@ -255,9 +254,7 @@ class Train_Test:
 
     # load the saved parameters to the model
     def load(self, model_name):
-        model_path = os.path.join(self.model_dir, model_name)
-        self.logger.log_message(f"Loading model '{model_path}'...")
-
-        state_dict = torch.load(model_path, map_location=torch.device(self.device))
+        self.logger.log_message(f"Loading model '{self.model_dir}{model_name}'...")
+        state_dict = load_model(self.model_dir, model_name, self.device)
         self.model.load_state_dict(state_dict)
         return self.model.to(self.device)

@@ -1,0 +1,43 @@
+output_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/outputs"
+
+model:
+  model_name: "BERT-TFBS"
+  max_length: 264
+
+split_config: # SAME AS CONFIG IN "data_split" DIR
+  name: "ABFs_cross-species"
+  split_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/data_splits"
+  test_split_type: "cross"  # Options: 'random' or 'cross'
+  val_split_type: "n-fold" # 'cross', 'n-fold': can be 'cross' when test_split_type is 'cross', as well
+  id_column: "species"
+  val_ids: [ ] # should be assigned for 'cross' val_split_type
+  test_ids: ["Si"] # should be assigned for 'cross' test_split_type ---> At or Si
+  test_size: 0.2 # should be assigned for 'random' test_split_type
+  fold: 5 # should be > 1 for 'n-fold' val_split_type, else 1
+  partition_mode: 'relaxed' # Options: 'relaxed' or 'strict'
+  sim: 0.9 # required when 'partition_mode' is strict
+  word_size: 8 # required when 'partition_mode' is strict
+
+device: "cuda"
+
+training:
+  num_epochs: 15
+  adjustable_LR:
+    enabled: true
+    max: 2e-6
+    min: 1.5e-5
+  model_params:
+    train_batch_size: [32]
+    learning_rate: [1.5e-5]
+    weight_decay: [1e-2]
+    freeze_layers: ['none']
+  early_stopping:
+    patience: 10
+    delta: 0.0
+
+wandb:
+  enabled: True
+  token: 'dc3d431c0afb735d9ac046c72f076bf1f7656472'
+  entity_name: 'haghani-vt'
+  timezone: 'US/Eastern'
+  timezone_format: '%Y-%m-%d_%H-%M-%S'

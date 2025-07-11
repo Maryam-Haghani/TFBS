@@ -247,7 +247,7 @@ def handle_inter_train_test_similarity(logger, df, sim, word_size, temp_dir):
     logger.log_message(f"Original size: {df['_in_test'].value_counts()}")
 
     df["row index"] = df.index + 1
-    df['chromosomeId'] = df['chromosomeId'].str.replace('_', '-')
+    df['chromosomeId'] = df['chromosomeId'].astype(str).str.replace('_', '-')
     df['entity'] = df.apply(
         lambda
             row: f"{row['row index']}_{row['species']}_{row['chromosomeId']}_{row['origin']}_{row['label']}_{row['_in_test']}",

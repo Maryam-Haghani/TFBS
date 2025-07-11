@@ -1,0 +1,10 @@
+dataset_dir: ""
+
+model:
+  model_name: "DeepBind"
+  kernel_length: 24
+  max_length: 264
+  saved_model_dir: ""
+
+device: "cuda"
+eval_batch_size: 64

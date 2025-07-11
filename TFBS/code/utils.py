@@ -1,7 +1,9 @@
-import yaml
+from omegaconf import OmegaConf
 from types import SimpleNamespace
 import types
 import math
+import os
+import torch
 
 def serialize_array(array):
     """
@@ -47,10 +49,17 @@ def dict_to_namespace(d):
     else:
         return d
 
-def load_config(config_path):
-    with open(config_path, "r") as file:
-        config = yaml.safe_load(file)
-        
+def load_config(config_path, split_config_path=None):
+    # load train + data_split config files
+    config = OmegaConf.load(config_path)
+
+    if split_config_path:
+        split_cfg = OmegaConf.load(split_config_path)
+        # inject the split_config node
+        config.split_config = split_cfg
+
+    # turn the *entire* merged OmegaConf tree into plain Python
+    config = OmegaConf.to_container(config, resolve=True)
     config_namespace = dict_to_namespace(config)
     return config_namespace
 
@@ -85,3 +94,9 @@ def adjust_learning_rate(optimizer, current_epoch, max_epoch, lr_min, lr_max, wa
                 1 + math.cos(math.pi * (current_epoch - max_epoch) / max_epoch)) / 2
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
+
+
+def load_model(model_dir, model_name, device):
+    model_path = os.path.join(model_dir, model_name)
+    state_dict = torch.load(model_path, map_location=torch.device(device))
+    return state_dict

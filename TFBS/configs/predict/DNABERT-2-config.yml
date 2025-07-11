@@ -1,0 +1,9 @@
+dataset_dir: ""
+
+model:
+  model_name: "DNABERT-2"
+  max_length: 264
+  saved_model_dir: ""
+
+device: "cuda"
+eval_batch_size: 32

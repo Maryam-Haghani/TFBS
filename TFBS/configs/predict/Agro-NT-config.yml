@@ -1,0 +1,10 @@
+dataset_dir: ""
+
+model:
+  model_name: "AgroNT"
+  use_padding: true
+  max_length: 264
+  saved_model_dir: ""
+
+device: "cuda"
+eval_batch_size: 64

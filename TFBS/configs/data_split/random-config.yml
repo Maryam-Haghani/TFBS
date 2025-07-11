@@ -1,0 +1,16 @@
+dataset_path: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/AtABFs_training_shuffle_neg_stride_200.csv"
+
+########
+name: "AtABFs_random"
+split_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/data_splits"
+test_split_type: "random"  # Options: 'random' or 'cross'
+val_split_type: "n-fold" # Options: 'cross', 'n-fold' - can be 'cross' when test_split_type is 'cross', as well
+id_column: ""
+val_ids: [] # should be assigned for 'cross' val_split_type
+test_ids: [] # should be assigned for 'cross' test_split_type
+test_size: 0.2 # should be assigned for 'random' test_split_type
+fold: 5 # should be > 1 for 'n-fold' val_split_type, else 1
+random_state: 436346
+partition_mode: 'strict' # Options: 'relaxed' or 'strict'
+sim: 0.9 # required when 'partition_mode' is strict
+word_size: 8 # required when 'partition_mode' is strict
