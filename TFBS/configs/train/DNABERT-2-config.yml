@@ -28,10 +28,10 @@ training:
     max: 2e-6
     min: 1.5e-5
   model_params:
+    freeze_layers: ['none']
     train_batch_size: [32]
     learning_rate: [1.5e-5]
     weight_decay: [1e-2]
-    freeze_layers: ['none']
   early_stopping:
     patience: 10
     delta: 0.0
