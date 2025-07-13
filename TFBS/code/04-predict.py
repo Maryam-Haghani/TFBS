@@ -8,9 +8,7 @@ from logger import CustomLogger
 from utils import load_config
 
 from datasets.deepbind_dataset import DeepBindDataset
-from datasets.hyenadna_dataset import HyenaDNA_Dataset
-from datasets.dnabert2_dataset import DNABERT2_dataset
-from datasets.agro_nt_dataset import AgroNT_Dataset
+from datasets.foundation_dataset import FoundationDataset
 
 from train_test import Train_Test
 
@@ -67,7 +65,8 @@ if __name__ == "__main__":
     if config.model.model_name == "HyenaDNA":
         tokenizer = (HyenaDNAModel(logger, pretrained_model_name=config.model.model_version, device=config.device)
                      .get_tokenizer(config.model.max_length))
-        ds_test = HyenaDNA_Dataset(tokenizer, df_test, config.model.max_length, config.model.use_padding)
+        ds_test = FoundationDataset(config.model.model_name, tokenizer, df_test, config.model.max_length,
+                                    config.model.use_padding)
         tt.model = (HyenaDNAModel(logger, pretrained_model_name=config.model.model_version, device=config.device)
                     .load_pretrained_model())
     elif config.model.model_name == 'DeepBind':
@@ -76,14 +75,14 @@ if __name__ == "__main__":
     elif config.model.model_name == 'BERT-TFBS':
         tokenizer = (BERT_TFBS(config.model.max_length).get_tokenizer())
         tt.model = BERT_TFBS(config.model.max_length)
-        ds_test = DNABERT2_dataset(tokenizer, df_test, config.model.max_length)
+        ds_test = FoundationDataset(config.model.model_name, tokenizer, df_test, config.model.max_length)
     elif config.model.model_name == 'DNABERT-2':
         tokenizer = (DNABERT2().get_tokenizer())
-        ds_test = DNABERT2_dataset(tokenizer, df_test, config.model.max_length)
+        ds_test = FoundationDataset(config.model.model_name, tokenizer, df_test, config.model.max_length)
         tt.model = DNABERT2()
     elif config.model.model_name == "AgroNT":
         tokenizer = AgroNTModel(logger, device=config.device).get_tokenizer()
-        ds_test = AgroNT_Dataset(tokenizer, df_test, config.model.max_length)
+        ds_test = FoundationDataset(config.model.model_name, tokenizer, df_test, config.model.max_length)
         tt.model = (AgroNTModel(logger, device=config.device)
                     .load_pretrained_model(config.model.finetune_type))
     else:

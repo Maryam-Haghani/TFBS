@@ -4,6 +4,12 @@ import types
 import math
 import os
 import torch
+from pathlib import Path
+
+def get_last_two_dirs(path_str):
+    # remove trailing slash for consistency
+    p = Path(path_str.rstrip('/'))
+    return  f"{p.parent.name}/{p.name}"
 
 def serialize_array(array):
     """
