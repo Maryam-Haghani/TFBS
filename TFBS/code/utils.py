@@ -3,13 +3,10 @@ from types import SimpleNamespace
 import types
 import math
 import os
-import torch
 from pathlib import Path
-
-def get_last_two_dirs(path_str):
-    # remove trailing slash for consistency
-    p = Path(path_str.rstrip('/'))
-    return  f"{p.parent.name}/{p.name}"
+import pytz
+from datetime import datetime
+import wandb
 
 def serialize_array(array):
     """
@@ -101,8 +98,68 @@ def adjust_learning_rate(optimizer, current_epoch, max_epoch, lr_min, lr_max, wa
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
+def make_folder_name(split_config, is_path=True):
+    name = split_config.name
+    # if split type is cross, add test_id to output_dir
+    if getattr(split_config, 'test_split_type') == 'cross':
+        # turn list into '_' delimited str
+        raw_ids = split_config.test_ids
+        id_str = '_'.join(str(x) for x in raw_ids)
 
-def load_model(model_dir, model_name, device):
-    model_path = os.path.join(model_dir, model_name)
-    state_dict = torch.load(model_path, map_location=torch.device(device))
-    return state_dict
+        if is_path:
+            name = os.path.join(name, f"test-{id_str}")
+        else:
+            name = f"{name}-test-{id_str}"
+    return name
+
+def make_dirs(config):
+    name = make_folder_name(config.split_config)
+
+    output_dir = os.path.join(config.output_dir, name, config.model.model_name,
+                              config.split_config.partition_mode)
+    # if there's a non‐empty finetune_type, add it to output_dir
+    if getattr(config.model, 'finetune_type', None):
+        output_dir = os.path.join(config.output_dir, name, config.model.model_name,
+                                  config.model.finetune_type, config.split_config.partition_mode)
+    # if there's a non‐empty model_version, add it to output_dir
+    if getattr(config.model, 'model_version', None):
+        output_dir = os.path.join(config.output_dir, name, config.model.model_name,
+                                  config.model.model_version, config.model.finetune_type,
+                                  config.split_config.partition_mode)
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    model_dir = os.path.join(output_dir, "models")
+    os.makedirs(model_dir, exist_ok=True)
+
+    return output_dir, model_dir
+
+def get_models(model_dir):
+    p = Path(model_dir)
+
+    # model_dir should already exist and contain some saved models in .pt format
+    if not p.exists():
+        raise FileNotFoundError(f"Directory does not exist: {p}")
+    if not p.is_dir():
+        raise NotADirectoryError(f"Not a directory: {p}")
+
+    pt_files = list(p.glob("*.pt"))
+    if not pt_files:
+        raise FileNotFoundError(f"No model with .pt file format found in: {p}")
+    return [pt_file.name for pt_file in pt_files]
+
+def directory_not_empty(directory):
+    return any(Path(directory).iterdir())
+
+def init_wandb(wandb_params, model, project_name, run_name):
+    try:
+        wandb.login(key=wandb_params.token)
+
+        eastern = pytz.timezone(wandb_params.timezone)
+        wandb.init(project=f'NEW-{project_name}',
+                   entity=wandb_params.entity_name,
+                   name=f"{run_name}-{datetime.now(eastern).strftime(wandb_params.timezone_format)}")
+        wandb.watch(model, log="all")
+    except Exception as e:
+        logger.log_message(f"Error initializing Wandb: {e}")
+        raise

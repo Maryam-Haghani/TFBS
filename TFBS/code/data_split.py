@@ -45,7 +45,7 @@ class DataSplit:
         split_path, val_split_path = self.get_split_dir()
 
         if os.path.exists(val_split_path):
-            raise ValueError(f'Data_split dir already exists {val_split_path}!')
+            raise ValueError(f"Data_split dir already exists {val_split_path}!")
 
         os.makedirs(split_path, exist_ok=True)
         df = self._read_dataset(self.config.dataset_path)
@@ -108,15 +108,27 @@ class DataSplit:
 
         self.logger.log_message(
             f"Loading '{self.config.val_split_type}' train-val splits from {val_split_path}")
-        dfs_train = []
-        dfs_val = []
+
         if self.config.val_split_type == 'n-fold':
-            for fold in range(1, self.config.fold + 1):
-                dfs_train.append(pd.read_csv(os.path.join(val_split_path, f'Fold_{fold}', 'train_dataset.csv')))
-                dfs_val.append(pd.read_csv(os.path.join(val_split_path, f'Fold_{fold}', 'val_dataset.csv')))
+            dfs_train = {
+                fold: (
+                    pd.read_csv(
+                        os.path.join(val_split_path, f'Fold_{fold}', 'train_dataset.csv')
+                    )
+                )
+                for fold in range(1, self.config.fold + 1)
+            }
+            dfs_val = {
+                fold: (
+                    pd.read_csv(
+                        os.path.join(val_split_path, f'Fold_{fold}', 'val_dataset.csv')
+                    )
+                )
+                for fold in range(1, self.config.fold + 1)
+            }
         else:  # self.config.val_split_type == "cross"
-            dfs_train.append(pd.read_csv(os.path.join(val_split_path, 'train_dataset.csv')))
-            dfs_val.append(pd.read_csv(os.path.join(val_split_path, 'val_dataset.csv')))
+            dfs_train = {1: pd.read_csv(os.path.join(val_split_path, 'train_dataset.csv'))}
+            dfs_val = {1: pd.read_csv(os.path.join(val_split_path, 'val_dataset.csv'))}
 
         return dfs_train, dfs_val, df_test
 
