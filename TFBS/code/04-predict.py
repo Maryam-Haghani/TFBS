@@ -1,114 +1,93 @@
-import torch
 import pandas as pd
 import os
 import argparse
 from pathlib import Path
 
 from logger import CustomLogger
-from utils import load_config
-
-from datasets.deepbind_dataset import DeepBindDataset
-from datasets.foundation_dataset import FoundationDataset
+from utils import load_config, get_models
+from model_utils import init_model_and_tokenizer, get_ds, set_device, load_model
 
 from train_test import Train_Test
 
-from models.hyena_dna import HyenaDNAModel
-from models.dna_bert_2 import DNABERT2
-from models.deep_bind import DeepBind
-from models.BERT_TFBS.bert_tfbs import BERT_TFBS
-from models.agro_nt import AgroNTModel
-
 # python 04-predict.py --config_file [config_path]
 # python 04-predict.py --config_file ../configs/predict/HeynaDNA-config.yml
-
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_file", type=str, required=True, help="Path to the config file.")
     return parser.parse_args()
 
-def validate(config):
+def validate_saved_model_dir(config):
+    """Ensure that the model and version exist in the saved_model_dir."""
     p = Path(config.saved_model_dir)
-    #  model_name should be a directory in `saved_model_dir`
     if not config.model_name in p.parts:
         raise ValueError(f'Given model name ({config.model_name})'
-                         f'is not in saved_model_dir ({config.saved_model_dir})!')
+                         f'not found in saved_model_dir ({config.saved_model_dir})!')
 
     if config.model_version:
         #  model_version should be a directory in `saved_model_dir`
         if not config.model_version in p.parts:
             raise ValueError(f'Given model version ({config.model_version})'
-                             f'is not in saved_model_dir ({config.saved_model_dir})!')
+                             f'not found in saved_model_dir ({config.saved_model_dir})!')
+
+def setup_logger(output_dir):
+    """Initialize logger with the given output directory."""
+    logger = CustomLogger(__name__, log_directory=output_dir, log_file="log")
+    logger.log_message(f"Output will save at: {output_dir}")
+    return logger
 
 if __name__ == "__main__":
-
     args = parse_arguments()
     config = load_config(args.config_file)
 
-    validate(config.model)
+    validate_saved_model_dir(config.model)
+    model_files = get_models(config.model.saved_model_dir)
 
-    output_dir = os.path.join(config.model.saved_model_dir, Path(config.dataset_dir).stem, 'predictions')
+    output_dir = os.path.join(config.model.saved_model_dir, 'Predictions', Path(config.dataset_dir).stem)
     os.makedirs(output_dir, exist_ok=True)
 
-    logger = CustomLogger(__name__, log_directory=output_dir, log_file=f'log')
-    logger.log_message(f"Configuration loaded: {config}")
-    logger.log_message(f"Output will save at: {output_dir}")
+    logger = setup_logger(output_dir)
 
-    config.device = "cuda" if torch.cuda.is_available() and config.device == "cuda" else "cpu"
-    logger.log_message("Using device:", config.device)
     logger.log_message(f'Using saved model(s) in {config.model.saved_model_dir} for prediction...')
 
-    df_test = pd.read_csv(config.dataset_dir)
+    config.device = set_device(config.device)
+    logger.log_message("Using device:", config.device)
 
-    tt = Train_Test(logger, config.device, config.model.saved_model_dir, config.eval_batch_size)
+    df = pd.read_csv(config.dataset_dir)
 
-    if config.model.model_name == "HyenaDNA":
-        tokenizer = (HyenaDNAModel(logger, pretrained_model_name=config.model.model_version, device=config.device)
-                     .get_tokenizer(config.model.max_length))
-        ds_test = FoundationDataset(config.model.model_name, tokenizer, df_test, config.model.max_length,
-                                    config.model.use_padding)
-        tt.model = (HyenaDNAModel(logger, pretrained_model_name=config.model.model_version, device=config.device)
-                    .load_pretrained_model())
-    elif config.model.model_name == 'DeepBind':
-        ds_test = DeepBindDataset(df_test, config.model.max_length, config.model.kernel_length)
-        tt.model = DeepBind(config.model.kernel_length)
-    elif config.model.model_name == 'BERT-TFBS':
-        tokenizer = (BERT_TFBS(config.model.max_length).get_tokenizer())
-        tt.model = BERT_TFBS(config.model.max_length)
-        ds_test = FoundationDataset(config.model.model_name, tokenizer, df_test, config.model.max_length)
-    elif config.model.model_name == 'DNABERT-2':
-        tokenizer = (DNABERT2().get_tokenizer())
-        ds_test = FoundationDataset(config.model.model_name, tokenizer, df_test, config.model.max_length)
-        tt.model = DNABERT2()
-    elif config.model.model_name == "AgroNT":
-        tokenizer = AgroNTModel(logger, device=config.device).get_tokenizer()
-        ds_test = FoundationDataset(config.model.model_name, tokenizer, df_test, config.model.max_length)
-        tt.model = (AgroNTModel(logger, device=config.device)
-                    .load_pretrained_model(config.model.finetune_type))
-    else:
-        raise ValueError(f'Given model name ({config.model.model_name}) is not valid!')
+    tt = Train_Test(logger, config.device, config.eval_batch_size)
+
+    model, tokenizer = init_model_and_tokenizer(logger, config.model, config.device)
+    base_sd = model.state_dict()
+    ds_test = get_ds(config.model, tokenizer, df)
 
     # get predictions for all folds
     results = []
-    for model_name in os.listdir(config.model.saved_model_dir):
-        if model_name.endswith(".pt"):
-            logger.log_message(f'********************************\n'
-                               f'Getting prediction based on {model_name}')
-            model = tt.load(model_name)
+    for model_name in model_files:
+        logger.log_message(f'********************************\n'
+                           f'Getting prediction based on {model_name}')
+        # reset model to the initial model
+        model.load_state_dict(base_sd)
 
-            name, _ext = os.path.splitext(model_name)
-            test_accuracy, test_auroc, test_auprc, test_f1, test_mcc, test_time \
-                = tt.test(ds_test, name, output_dir)
-    
-            results.append({
-                'model_name': model_name,
-                'test_accuracy': round(test_accuracy, 2),
-                'test_f1': round(test_f1, 2),
-                'test_mcc': round(test_mcc, 2),
-                'test_auroc': round(test_auroc, 2),
-                'test_auprc': round(test_auprc, 2),
-                'test_time(s)': test_time
-            })
+        logger.log_message(f"Loading model '{config.model.saved_model_dir}/{model_name}'...")
+        state_dict = load_model(config.model.saved_model_dir, model_name, config.device)
+        model.load_state_dict(state_dict)
+        model.to(config.device)
+
+        name, _ext = os.path.splitext(model_name)
+        tt.model = model
+        test_accuracy, test_auroc, test_auprc, test_f1, test_mcc, test_time \
+            = tt.test(ds_test, name, output_dir)
+
+        results.append({
+            'model_name': model_name,
+            'test_accuracy': round(test_accuracy, 2),
+            'test_f1': round(test_f1, 2),
+            'test_mcc': round(test_mcc, 2),
+            'test_auroc': round(test_auroc, 2),
+            'test_auprc': round(test_auprc, 2),
+            'test_time(s)': test_time
+        })
 
     df_results = pd.DataFrame(results)
     results_csv_file = os.path.join(output_dir, 'prediction_results.csv')

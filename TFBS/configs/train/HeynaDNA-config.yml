@@ -14,19 +14,14 @@ training:
   adjustable_LR:
     enabled: false
   model_params:
-    freeze_layers: [ [ 'backbone' ], [ 'backbone.embeddings' ], [ 'backbone.layers' ], [ 'none' ] ]
-      # 'backbone.embeddings': Freezes the embedding layer.
-      # 'backbone.layers'    : Freezes all transformer blocks.
-      # 'backbone.layers.[i]': Freezes a specific transformer block.
-    # 'backbone'           : Freezes the entire backbone (embeddings + all transformer layers).
-    # 'head'               : Freezes the output classification head.
-
-    #    batch_size: [ 32, 64, 128, 256 ]
-    #    learning_rate: [ 1e-6, 1e-5, 1e-4, 1e-3 ]
-    #    weight_decay: [ 0.0, 0.01, 0.1 ]
+    freeze_layers: ['none']
+    # freeze_layers: [ [ 'backbone' ], [ 'backbone.embeddings' ], [ 'backbone.layers' ], [ 'none' ] ]
     train_batch_size: [32]
+    #    train_batch_size: [ 32, 64, 128, 256 ]
     learning_rate: [1e-4]
+    #    learning_rate: [ 1e-6, 1e-5, 1e-4, 1e-3 ]
     weight_decay: [0.1]
+    #    weight_decay: [ 0.0, 0.01, 0.1 ]
   early_stopping:
     patience: 10
     delta: 0.0

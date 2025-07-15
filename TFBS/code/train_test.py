@@ -17,16 +17,13 @@ from sklearn.metrics import (
 
 from early_stop import EarlyStopping
 from visualization import plot_roc_pr
-from utils import adjust_learning_rate, load_model
+from utils import adjust_learning_rate
 
 class Train_Test:
-    def __init__(self, logger, device, model_dir, eval_batch_size, training_params=None):
+    def __init__(self, logger, device, eval_batch_size, training_params=None):
         self.logger = logger
-
         self.device = device
-        self.model_dir = model_dir
         self.eval_batch_size = eval_batch_size
-
         self.training = training_params
 
     # freeze specified layers by setting `requires_grad` to False.
@@ -170,7 +167,7 @@ class Train_Test:
         test_time = time.time() - start_time  # END TEST TIME
         return acc, auroc, auprc, f1, mcc, test_time
 
-    def train(self, ds_train, ds_val, model_name, wandb):
+    def train(self, ds_train, ds_val, model_name, model_dir, wandb):
         self._freeze_layers()
 
         self.logger.log_message(f'model name: {model_name}')
@@ -216,16 +213,19 @@ class Train_Test:
                 val_loader, model_name, loss_fn=loss_fn
             )
 
-            wandb.log({
-                "epoch": epoch + 1,
-                "train loss": train_loss,
-                "val loss": val_loss,
-                "val ACC": val_acc,
-                "val AUROC": val_auroc,
-                "val AUPRC": val_auprc,
-                "val F1": val_f1,
-                "val MCC": val_mcc
-            })
+            if wandb is not None:
+                wandb.log({
+                    "epoch": epoch + 1,
+                    "train loss": train_loss,
+                    "val loss": val_loss,
+                    "val ACC": val_acc,
+                    "val AUROC": val_auroc,
+                    "val AUPRC": val_auprc,
+                    "val F1": val_f1,
+                    "val MCC": val_mcc
+                })
+            else:
+                self.logger.log_message("wandb is not enabled. Skipping logging.")
 
             # check early stopping criteria
             early_stopping(val_loss, self.model, epoch)
@@ -246,15 +246,8 @@ class Train_Test:
             self.logger.log_message(f"Loaded best model weights from epoch {best_epoch+1}.") # converting 0-indexed to 1-indexed
 
             # save the model
-            model_path = os.path.join(self.model_dir, f'{model_name}.pt')
+            model_path = os.path.join(model_dir, f'{model_name}.pt')
             torch.save(self.model.state_dict(), model_path)
             self.logger.log_message(f"Best model saved as: {model_path}")
 
         return f'{trainable_params} / {total_params}', best_epoch+1, val_acc, val_auroc, val_auprc, val_f1, val_mcc, training_time
-
-    # load the saved parameters to the model
-    def load(self, model_name):
-        self.logger.log_message(f"Loading model '{self.model_dir}{model_name}'...")
-        state_dict = load_model(self.model_dir, model_name, self.device)
-        self.model.load_state_dict(state_dict)
-        return self.model.to(self.device)

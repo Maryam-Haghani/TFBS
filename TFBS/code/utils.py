@@ -151,7 +151,7 @@ def get_models(model_dir):
 def directory_not_empty(directory):
     return any(Path(directory).iterdir())
 
-def init_wandb(wandb_params, model, project_name, run_name):
+def init_wandb(logger, wandb_params, model, project_name, run_name):
     try:
         wandb.login(key=wandb_params.token)
 
