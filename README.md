@@ -4,23 +4,27 @@
 
 ## Overview
 
-This project fine-tunes large pretrained DNA foundation models to predict transcription factor binding sites (TFBSs) in plant genomes. We benchmark three foundation models (DNABERT-2, AgroNT, HyenaDNA) against specialized methods (DeepBind, BERT-TFBS) on DAP-seq data from *Arabidopsis thaliana* and *Sisymbrium irio*. Our unified pipeline covers three evaluation protocols:
+This project fine-tunes large pretrained DNA foundation models to predict transcription factor binding sites (TFBSs) in plant genomes.
+We benchmark three foundation models:**DNABERT-2**, **AgroNT**, and **HyenaDNA**, against specialized methods like **DeepBind** and **BERT-TFBS** using DAP-seq data from *Arabidopsis thaliana* and *Sisymbrium irio*.
+The project uses a unified pipeline, which covers three evaluation protocols:
 
-1. **Cross-chromosome**: Leave-one-chromosome-out on *A. thaliana* (Sun2022).  
-2. **Cross-dataset**: Train on Malley2016 AREB/ABF2, test on Sun2022 AREB/ABF2.  
+1. **Cross-chromosome**: Leave-one-chromosome-out evaluation on *A. thaliana* (Sun2022). 
+2. **Cross-dataset**: Train on Malley2016 AREB/ABF2 dataset, test on Sun2022 AREB/ABF2 dataset.
 3. **Cross-species**: Train on one species, test on the other (Sun2022).
 
-HyenaDNA achieves near state-of-the-art accuracy while training in minutes (versus hours), demonstrating both predictive power and computational efficiency.
+The **HyenaDNA** model achieves near state-of-the-art accuracy while training in minutes, demonstrating both predictive power and computational efficiency.
 
 ## Installation
 
-1. **Clone the repo**  
+To get started, follow these steps:
+
+1. **Clone the repository**  
    ```bash
    git clone https://github.com/Maryam-Haghani/TFBS.git
    cd TFBS
    ```
 
-2. **Create a conda/env virtual environment**  
+2. **Create a conda environment**  
    ```bash
    conda create -n tfbs-env python=3.9
    conda activate tfbs-env
@@ -30,97 +34,156 @@ HyenaDNA achieves near state-of-the-art accuracy while training in minutes (vers
    ```bash
    pip install -r requirements.txt
    ```
+   
+4. **Navigate to the code directory**:
+   ```bash
+   cd ./TFBS/code
+   ```
+
 ---
 
 ## 1. Data Preparation
 
-1. **Download raw DAP-seq data** into `data/raw/`:  
-   - **Sun2022** AREB/ABF1–4 peaks for *A. thaliana* & *S. irio*  
-   - **Malley2016** AREB/ABF2 peaks for *A. thaliana*  
-2. **Run preprocessing** (pad/truncate, negative sampling, 5-fold splits):  
-   ```bash
-   python src/preprocess.py      --input-dir data/raw/      --output-dir data/processed/      --protocol cross_chromosome      --chromosomes 1 2 3 4 5      --lengths 264
-   ```
-   Repeat for `cross_dataset` (length = 201) and `cross_species` (length = 264).
+Data utilized in this project are sourced from the [Ronan2016](https://pubmed.ncbi.nlm.nih.gov/27203113/) and [Sun2022](https://pubmed.ncbi.nlm.nih.gov/35501452/) studies. Download the data and place it in the `./inputs` directory inside the `./TFBS` project folder.
+
+We used the `01-generate_samples.py` script to process raw data and generate positive and negative samples.
+
+### Usage
+
+To run the script, use the following command:
+
+```bash
+python 01-generate_samples.py   [args]
+```
+
+#### Arguments
+- `--fasta_file`: Path to the genome FASTA file.
+- `--peak_file`: Path to the CSV file containing peak data.
+- `--species`: Species type (currently supporting *S. irio* and *A. thaliana*).
+- `--dataset`: Origin of peak files.
+- `--output_file`: Path to save the output CSV file to contain positive and negative samples.
+- `--neg_type`: Method to generate negative samples (e.g., "dinuc_shuffle", "shuffle", "random").
+- `--sliding_window`: Window around the peak region. Sample lengths vary based on the original peak length.
+- `--fixed_length`:  If specified, generates samples of fixed length, ignoring the sliding window.
+
+#### Example
+##### For *A. thaliana* (ABF1-4) dataset:
+```bash
+python 01-generate_samples.py --fasta_file ../inputs/fastas/Arabidopsis_thaliana.TAIR10.dna_sm.toplevel.fa --peak_file ../inputs/peak_files/AtABFs_DAP-Seq_peaks.csv --species "At" --dataset Josey  --output_file ../inputs/AtABFs_training_shuffle_neg_stride_200.csv’
+```
+##### For *S. irio* (ABF1-4) dataset:
+```bash
+python 01-generate_samples.py --fasta_file ../inputs/fastas/Si_sequence --peak_file ../inputs/peak_files/SiABFs_DAP-Seq_peaks.csv --species "Si" --dataset Josey  --output_file ../inputs/SiABFs_training_shuffle_neg_stride_200.csv  
+```
+### Output
+The script will generate a CSV file containing processed positive and negative samples, saved at the location specified by `--output_file`.
+
 
 ## 2. Data Split
+### Description
 
-All data split configurations are stored in the `/configs/data_split` directory.
+This script splits the data based on the provided configuration file.
 
-- **Cross configs**:
-  - `cross_cromosome_config.yml`
-    - `test_id`: choose an integer from **1** to **5**.
-  - `cross_species_config.yml`
-    - `test_id`: choose one of **At**, **Si**.
-  - `cross_dataset_config.yml`
-    - `test_id`: use the provided identifiers for your datasets.
-
-To adjust a cross configuration:
-1. Open the desired `cross_*_config.yml` file.
-2. Set `test_id` to one of the valid values.
-
-### Generating the Splits
-
-Run the split script:
+### Usage
+To run the script, use the following command:
 
 ```bash
-python 02-split_data.py   --config /configs/data_split/<your_config>.yml
+python 02-split_data.py --config_file [config_path]
 ```
 
-- The script reads:
-  - `config.split_dir`: root output directory.
-  - `config.name`: name of the split.
-  - `dataset_path`: folder containing the source CSV files.
-- Splits are created in:
-  ```
-  <config.split_dir>/<config.name>/
-  ```
+#### Arguments
+- `--config_file`: Path to the configuration YAML file, which contains settings for the data split (file paths, random seed, etc.).
+
+Data split configurations are located in the `/configs/data_split` directory.
+
+#### Cross-configs
+- `cross_chromosome_config.yml`: Use `test_id` values between **1** and **5**.
+- `cross_species_config.yml`: Use `test_id` as either **At** or **Si**.
+- `cross_dataset_config.yml`: Use provided dataset identifiers.
+
+#### Example
+If you have a configuration file located at `../configs/data_split/cross-species-config.yml`, run:
+
+```bash
+python 02-split_data.py --config_file ../configs/data_split/cross-chromosome-config.yml
+```
+
+### Output
+Data splits are stored in `<config.split_dir>/<config.name>`.
+
 
 ## 3. Training / Fine-tuning Models on a Split
+### Description
+This script trains and evaluates machine learning models, with a grid search over hyperparameters like batch size, learning rate, and weight decay.
+It integrates with [Weights & Biases (wandb)](https://wandb.ai) for experiment tracking and visualization.
 
-Each model has its own config in `/configs/train`. You should use the model config along with the specified data_split config.
-
-Run the training script to fine-tune each model end-to-end with a two-neuron classification head:
+### Usage
+To run the script, use the following command:
 
 ```bash
-python 03-train.py   --config_file [train_config_path] --split_config_file [data_split_config-path]
+python 03-train.py --train_config_file [train_config_path] --split_config_file [data_config_path]
 ```
 
-Trained models and logs are saved in:
+#### Arguments
+- `--train_config_file`: Path to the training configuration YAML file.
+- `--split_config_file`: Path to the data split configuration YAML file.
+
+#### Example
+```bash
+python 03-train.py --train_config_file ../configs/train/HeynaDNA-config.yml --split_config_file ../configs/data_split/cross-species-config.yml
 ```
-<config.output_dir>/<split_config.name>/
-```
+
+### Output
+Trained models and logs are saved in `<config.output_dir>/<split_config.name>/`
 
 ## 4. Prediction
-Each model has its own config in `/configs/predict`.
+### Description
+This script generates predictions from saved pre-trained models on a test dataset.
 
-Run the test script to predict transcription factor binding site for a test dataset (`config.dataset_dir`) based on the saved model (`config.saved_model_dir`):
-
+### Usage
+To run the script, use the following command:
 
 ```bash
 python 04-predict.py --config_file [config_path]
 ```
 
-Script will output CSVs in a folder named as dataset name (csv file without .csv extension) in prediction folder and figures in `plot` directory in the root directory of `config.model.saved_model_dir`.
+#### Arguments
+
+- `--config_file`: The path to the configuration YAML file.
+
+#### Example
+```bash
+python 04-predict.py --config_file ../configs/predict/HeynaDNA-config.yml
+```
+
+### Output
 
 
-## 5. Embedding
+## 5. Embedding Generation and Visualization
+This script extracts embeddings from a pre-trained or saved model, and visualizes them using PCA, T-SNE, or UMAP.
+The script supports the use of pre-trained models or saved models, based on the configuration provided (`use_pretrained_model`).
+
 Each model has its own config in `/configs/embedding`.
 
-Run the embedding script to get embeddings using the specified model (`config.model`) for a dataset (`config.dataset_dir`) based on either
-### Using the original pretrained model (`config.model.model_name`)
-```bash
-python 05-get_embedding.py --config_file [train_config_path]
-```
-In the config file, user should provide the dataset path in `config.dataset_dir` directory.
-Script will save a pt file containing sequences, their embeddings and their true labels in  EMBEDDINGS-`config.dataset_dir` directory with the name of model .pt
+### Usage
 
-### b Using saved model (`config.model.saved_model_dir`)
+To run the script, use the following command:
+
 ```bash
-python 05-get_embedding.py --config_file [config_path] --split_config_file [data_split_config-path]
+python 05-get_embedding.py --split_config_file [split_config_path] --embed_config_file [embed_config_path]
 ```
-In this case, the script will get dataset to generate embeddings for based on `split_config_file` file
-Script will save a pt file containing sequences, their embeddings and their true labels in the `config.model.saved_model_dir`/`Embedding` directory for all models inside the saved_model_dir
+
+#### Arguments
+- `--split_config_file`: The path to the data split configuration YAML file.
+- `--embed_config_file`: The path to the embedding configuration YAML file.
+
+#### Example
+```bash
+python 05-get_embedding.py --split_config_file ../configs/data_split/cross-species-config.yml --embed_config_file ../configs/embedding/HeynaDNA-config.yml
+```
+
+### Output
+Embeddings are saved in `.pt` files, and visualizations are generated in `plots` subdirectory.
 
 ## Requirements
 
@@ -149,14 +212,6 @@ If you use this code or data, please cite:
   doi     = {10.1101/XXXXXX}
 }
 ```
-
----
-
-[//]: # (## License)
-
-[//]: # ()
-[//]: # (This project is released under the [MIT License]&#40;LICENSE&#41;.)
-
 ---
 
 ## Contact
