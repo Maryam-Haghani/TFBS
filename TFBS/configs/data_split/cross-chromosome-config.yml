@@ -1,4 +1,4 @@
-dataset_path: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/AtABFs_training_shuffle_neg_stride_200.csv"
+dataset_path: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/AtABFs_shuffle_neg_stride_200.csv"
 
 #############
 name: "AtABFs_cross_chromosome"

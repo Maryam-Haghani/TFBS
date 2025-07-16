@@ -43,17 +43,17 @@ To get started, follow these steps:
 ---
 
 ## 1. Data Preparation
-
 Data utilized in this project are sourced from the [Ronan2016](https://pubmed.ncbi.nlm.nih.gov/27203113/) and [Sun2022](https://pubmed.ncbi.nlm.nih.gov/35501452/) studies. Download the data and place it in the `./inputs` directory inside the `./TFBS` project folder.
 
-We used the `01-generate_samples.py` script to process raw data and generate positive and negative samples.
+We used the `01-generate_samples.py` script to process raw data and generate positive and negative samples for transcription factor (TF) binding sites.
+It takes as input a FASTA file of chromosome sequences for species genome and a CSV file containing peak regions.
+Negative sample will be generated based on `neg_type` argument with default value of "shuffle".
 
 ### Usage
-
 To run the script, use the following command:
 
 ```bash
-python 01-generate_samples.py   [args]
+python 01-generate_samples.py --fasta_file path/to/your.fasta --peak_file path/to/peaks.csv --output_file path/to/output.csv --neg_type shuffle --species SI/ATA --dataset Josey/Ronan
 ```
 
 #### Arguments
@@ -69,14 +69,14 @@ python 01-generate_samples.py   [args]
 #### Example
 ##### For *A. thaliana* (ABF1-4) dataset:
 ```bash
-python 01-generate_samples.py --fasta_file ../inputs/fastas/Arabidopsis_thaliana.TAIR10.dna_sm.toplevel.fa --peak_file ../inputs/peak_files/AtABFs_DAP-Seq_peaks.csv --species "At" --dataset Josey  --output_file ../inputs/AtABFs_training_shuffle_neg_stride_200.csv’
+python 01-generate_samples.py --fasta_file ../inputs/fastas/Arabidopsis_thaliana.TAIR10.dna_sm.toplevel.fa --peak_file ../inputs/peak_files/AtABFs_DAP-Seq_peaks.csv --species "At" --dataset Josey  --output_file ../inputs/AtABFs_shuffle_neg_stride_200.csv
 ```
 ##### For *S. irio* (ABF1-4) dataset:
 ```bash
-python 01-generate_samples.py --fasta_file ../inputs/fastas/Si_sequence --peak_file ../inputs/peak_files/SiABFs_DAP-Seq_peaks.csv --species "Si" --dataset Josey  --output_file ../inputs/SiABFs_training_shuffle_neg_stride_200.csv  
+python 01-generate_samples.py --fasta_file ../inputs/fastas/Si_sequence --peak_file ../inputs/peak_files/SiABFs_DAP-Seq_peaks.csv --species "Si" --dataset Josey  --output_file ../inputs/SiABFs_shuffle_neg_stride_200.csv  
 ```
 ### Output
-The script will generate a CSV file containing processed positive and negative samples, saved at the location specified by `--output_file`.
+This will generate positive and negative samples based on the given negative type generation, for the given species using the provided FASTA file and peak data, saving the results to `--output_file`.
 
 
 ## 2. Data Split
@@ -179,7 +179,7 @@ python 05-get_embedding.py --split_config_file [split_config_path] --embed_confi
 
 #### Example
 ```bash
-python 05-get_embedding.py --split_config_file ../configs/data_split/cross-species-config.yml --embed_config_file ../configs/embedding/HeynaDNA-config.yml
+python 05-get_embedding.py --embed_config_file ../configs/embedding/HeynaDNA-config.yml --split_config_file ../configs/data_split/cross-species-config.yml
 ```
 
 ### Output

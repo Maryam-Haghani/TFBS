@@ -15,11 +15,11 @@ class EarlyStopping:
         self.best_epoch = 0
 
     def __call__(self, val_loss, model, epoch):
-        # If this is the first epoch or the validation loss improved enough, save the model
+        # if this is the first epoch or the validation loss improved enough, save the model
         if self.best_loss is None or val_loss < self.best_loss - self.delta:
             self.best_loss = val_loss
             self.best_epoch = epoch
-            # Save a deep copy of the best model state (on CPU to avoid device issues later)
+            # save a deep copy of the best model state (on CPU to avoid device issues later)
             self.best_model_state = {k: v.cpu() for k, v in model.state_dict().items()}
             self.counter = 0
             if self.verbose:

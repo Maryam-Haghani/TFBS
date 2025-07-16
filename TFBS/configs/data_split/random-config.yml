@@ -1,4 +1,4 @@
-dataset_path: "../inputs/AtABFs_training_shuffle_neg_stride_200.csv"
+dataset_path: "../inputs/AtABFs_shuffle_neg_stride_200.csv"
 
 ########
 name: "AtABFs_random"

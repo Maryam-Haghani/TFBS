@@ -14,8 +14,6 @@ from data_split import DataSplit
 from train_test import Train_Test
 
 # python 03-train.py --train_config_file [train_config_path] --split_config_file [data_config_path]
-# python 03-train.py --train_config_file ../configs/train/HeynaDNA-config.yml --split_config_file ../configs/data_split/cross-species-config.yml
-
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("--train_config_file", type=str, required=True, help="Path to the train config file.")

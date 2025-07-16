@@ -6,12 +6,9 @@ from pathlib import Path
 from logger import CustomLogger
 from utils import load_config, get_models
 from model_utils import init_model_and_tokenizer, get_ds, set_device, load_model
-
 from train_test import Train_Test
 
 # python 04-predict.py --config_file [config_path]
-# python 04-predict.py --config_file ../configs/predict/HeynaDNA-config.yml
-
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_file", type=str, required=True, help="Path to the config file.")

@@ -1,9 +1,7 @@
 import torch
 import torch.nn as nn
-import pandas as pd
 import os
 import argparse
-from pathlib import Path
 from torch.utils.data import DataLoader
 
 from logger import CustomLogger
@@ -13,8 +11,6 @@ from visualization import visualize_embeddings
 from data_split import DataSplit
 
 # python 05-get_embedding.py --config_file [config_path]
-# python 05-get_embedding.py --embed_config_file ../configs/embedding/HeynaDNA-config.yml --split_config_file ../configs/data_split/cross-species-config.yml
-
 def parse_arg():
     parser = argparse.ArgumentParser()
     parser.add_argument("--split_config_file", type=str, required=True, help="Path to the data_split config file.")
