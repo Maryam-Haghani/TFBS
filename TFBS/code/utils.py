@@ -98,6 +98,7 @@ def adjust_learning_rate(optimizer, current_epoch, max_epoch, lr_min, lr_max, wa
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
+# make folder based on data spilt config to be a subdirectory inside out_dir
 def make_folder_name(split_config, is_path=True):
     name = split_config.name
     # if split type is cross, add test_id to output_dir
@@ -163,3 +164,28 @@ def init_wandb(logger, wandb_params, model, project_name, run_name):
     except Exception as e:
         logger.log_message(f"Error initializing Wandb: {e}")
         raise
+
+def get_split_dirs(config):
+    split_path = os.path.join(config.split_dir, config.name)
+    # determine the test split path
+    if config.test_split_type == 'cross':
+        split_path = os.path.join(split_path,
+                                  f'test-{config.test_ids}-{config.partition_mode}')
+    elif config.test_split_type == 'random':
+        split_path = os.path.join(split_path,
+                                  f'test-{str(config.test_size)}-{config.partition_mode}')
+    else:
+        raise ValueError(
+            f"Invalid test_split_type: {config.test_split_type}")
+
+    # determine the validation split path
+    if config.val_split_type == 'cross':
+        val_split_path = os.path.join(split_path,
+                                      f'val_{config.val_split_type}-{config.id_column}',
+                                      f'val-{config.val_ids}')
+    elif config.val_split_type == 'n-fold':
+        val_split_path = os.path.join(split_path, f'val_{config.fold}-fold')
+    else:
+        raise ValueError(
+            f"Invalid val_split_type: {config.val_split_type}")
+    return split_path, val_split_path

@@ -8,7 +8,7 @@ import wandb
 
 from logger import CustomLogger
 from utils import load_config, serialize_dict, make_dirs, make_folder_name, init_wandb
-from model_utils import init_model_and_tokenizer, get_ds, set_device
+from model_utils import init_model_and_tokenizer, get_ds, set_device, get_model_name
 
 from data_split import DataSplit
 from train_test import Train_Test
@@ -38,9 +38,7 @@ def setup_logger_and_out(config):
 def get_wandb_params(config, fold):
     """Initialize and log to wandb if enabled."""
     name = make_folder_name(config.split_config, is_path=False)
-    project_name = f"{config.model.model_name}_{name}_{config.split_config.partition_mode}"
-    if getattr(config.model, 'model_version', None):
-        project_name = config.model.model_version + '_' + project_name
+    project_name =  f"{get_model_name(config.model)}_{name}_{config.split_config.partition_mode}"
     run_name = f'Fold-{fold}_{serialize_dict(config.training.model_params)}'
     return project_name, run_name
 

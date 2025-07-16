@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 from sklearn.model_selection import train_test_split, KFold
-from utils import extract_value_as_list
+from utils import extract_value_as_list, get_split_dirs
 from seq_similarity import get_non_similar_rows, handle_inter_train_test_similarity
 
 class DataSplit:
@@ -10,31 +10,6 @@ class DataSplit:
         self.logger = logger
         self.config = config
         self.label = label
-
-    def get_split_dir(self):
-        split_path = os.path.join(self.config.split_dir, self.config.name)
-        # determine the test split path
-        if self.config.test_split_type == 'cross':
-            split_path = os.path.join(split_path,
-                                      f'test-{self.config.test_ids}-{self.config.partition_mode}')
-        elif self.config.test_split_type == 'random':
-            split_path = os.path.join(split_path,
-                                      f'test-{str(self.config.test_size)}-{self.config.partition_mode}')
-        else:
-            raise ValueError(
-                f"Invalid test_split_type: {self.config.test_split_type}")
-
-        # determine the validation split path
-        if self.config.val_split_type == 'cross':
-            val_split_path = os.path.join(split_path,
-                                          f'val_{self.config.val_split_type}-{self.config.id_column}',
-                                          f'val-{self.config.val_ids}')
-        elif self.config.val_split_type == 'n-fold':
-            val_split_path = os.path.join(split_path, f'val_{self.config.fold}-fold')
-        else:
-            raise ValueError(
-                f"Invalid val_split_type: {self.config.val_split_type}")
-        return split_path, val_split_path
     
     @classmethod
     def split(cls, logger, config, label='label'):
@@ -42,7 +17,7 @@ class DataSplit:
         return instance._split()
 
     def _split(self):
-        split_path, val_split_path = self.get_split_dir()
+        split_path, val_split_path = get_split_dirs(self.config)
 
         if os.path.exists(val_split_path):
             raise ValueError(f"Data_split dir already exists {val_split_path}!")
@@ -98,7 +73,7 @@ class DataSplit:
         return instance._get_splits()
 
     def _get_splits(self):
-        split_path, val_split_path = self.get_split_dir()
+        split_path, val_split_path = get_split_dirs(self.config)
 
         if not os.path.exists(val_split_path):
             raise ValueError(f'Data_split dir does not exist at {split_path}!\nRun 02-data_split.py first.')

@@ -83,6 +83,7 @@ def init_model_and_tokenizer(logger, config, device):
     else:
         raise ValueError(f'Given model name ({config.model_name}) is not valid!')
     return model, tokenizer
+
 def get_ds(config, tokenizer, df):
     """
         Get test dataset based on the specified model name.
@@ -98,3 +99,10 @@ def get_ds(config, tokenizer, df):
             ds_test = FoundationDataset(config.model_name, tokenizer, df,
                                          config.max_length, config.use_padding)
     return ds_test
+
+def get_model_name(config):
+    name = config.model_name
+    if getattr(config, 'model_version', None):
+        name = name + '_' + config.model_version
+
+    return name
