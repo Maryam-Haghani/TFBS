@@ -9,8 +9,8 @@ Example usage
 
 python 01-generate_samples.py --fasta_file path/to/your.fasta --peak_file path/to/peaks.csv --output_file path/to/output.csv --neg_type shuffle -- species SI/ATA
 
-python 01-generate_samples.py --fasta_file ../inputs/fastas/Arabidopsis_thaliana.TAIR10.dna_sm.toplevel.fa --peak_file ../inputs/peak_files/AtABFs_DAP-Seq_peaks.csv --output_file ../inputs/AtABFs_training_shuffle_neg_stride_200.csv
-
+python 01-generate_samples.py --fasta_file ../inputs/fastas/Arabidopsis_thaliana.TAIR10.dna_sm.toplevel.fa --peak_file ../inputs/peak_files/AtABFs_DAP-Seq_peaks.csv --species "At" --dataset Josey  --output_file ../inputs/AtABFs_training_shuffle_neg_stride_200.csv’
+python 01-generate_samples.py --fasta_file ../inputs/fastas/Si_sequence --peak_file ../inputs/peak_files/SiABFs_DAP-Seq_peaks.csv --species "Si" --dataset Josey  --output_file ../inputs/SiABFs_training_shuffle_neg_stride_200.csv  
 """
 
 def parse_arguments():
@@ -20,7 +20,7 @@ def parse_arguments():
     parser.add_argument("--output_file", type=str, required=True, help="Path to save the output CSV file.")
     parser.add_argument("--neg_type", type=str, choices=["dinuc_shuffle","shuffle", "random", "matched"], required=False, default="shuffle")
     parser.add_argument("--bed_path", type=str, required=False, default=".")
-    parser.add_argument("--species", type=str, choices=["Si", "At"], required=False,  default="At", help="Species type: Si or At")
+    parser.add_argument("--species", type=str, choices=["Si", "At"], required=True, help="Species type: Si or At")
     parser.add_argument("--dataset", type=str, choices=["Josey", "Ronan"], required=True, help="Origin of Dataset")
     parser.add_argument("--sliding_window", type=int, required=False, default=200)
     parser.add_argument("--fixed_length", type=int, required=False, default=None,

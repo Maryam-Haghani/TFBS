@@ -27,5 +27,3 @@ if __name__ == "__main__":
     torch.cuda.manual_seed_all(config.random_state)
 
     DataSplit.split(logger, config, label='label')
-
-logger.log_message("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
