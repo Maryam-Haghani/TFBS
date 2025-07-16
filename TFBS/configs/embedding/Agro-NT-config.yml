@@ -1,16 +1,15 @@
-# set 'dataset_dir' for getting embedding of original models (use_saved_model: false)
-# otherwise must pass split_config
-#dataset_dir: "../data_splits/ABFs_cross-species/test-['At']-relaxed"
+device: "cuda"
+eval_batch_size: 64
 
 model:
   model_name: "AgroNT"
   use_padding: true
   max_length: 264
   finetune_type: "standard" # options: LoRA, standard
-  pooling_method: "first_token" # options: first_token, last_token, mean
-  use_saved_model: false
+  pooling_method: "first_token"
+  use_pretrained_model: true
   saved_model_name: ""
 
-output_dir: "../outputs"
-device: "cuda"
-eval_batch_size: 64
+# required when use_saved_model is true
+output_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/outputs"
+

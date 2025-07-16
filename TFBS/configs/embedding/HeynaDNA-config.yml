@@ -1,6 +1,5 @@
-# set 'dataset_dir' for getting embedding of original models (use_saved_model: false)
-# otherwise must pass split_config
-dataset_dir: "../data_splits/ABFs_cross-species/test-['Si']-relaxed"
+device: "cuda"
+eval_batch_size: 32
 
 model:
   model_name: "HyenaDNA"
@@ -8,10 +7,9 @@ model:
   use_padding: true
   max_length: 264
   finetune_type: "standard" # options: LoRA, standard
-  pooling_method: "mean" # options: first_token, last_token, mean
-  use_saved_model: false
+  pooling_method: "mean"
+  use_pretrained_model: true
   saved_model_name: "freeze_layers_none_train_batch_size_32_learning_rate_0.0001_weight_decay_0.1"
 
-output_dir: "../outputs"
-device: "cuda"
-eval_batch_size: 32
+# required when use_saved_model is true
+output_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/outputs"

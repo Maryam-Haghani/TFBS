@@ -7,61 +7,36 @@ from pathlib import Path
 from torch.utils.data import DataLoader
 
 from logger import CustomLogger
-from utils import load_config, make_dirs, get_models, directory_not_empty
-from model_utils import load_model, get_model_head_attributes, init_model_and_tokenizer, get_ds, set_device
-
+from utils import load_config, make_dirs, get_models, get_split_dirs
+from model_utils import load_model, get_model_head_attributes, init_model_and_tokenizer, get_ds, set_device, get_model_name
+from visualization import visualize_embeddings
 from data_split import DataSplit
 
 # python 05-get_embedding.py --config_file [config_path]
-# python 05-get_embedding.py --embed_config_file ../configs/embedding/HeynaDNA-config.yml
 # python 05-get_embedding.py --embed_config_file ../configs/embedding/HeynaDNA-config.yml --split_config_file ../configs/data_split/cross-species-config.yml
 
 def parse_arg():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--split_config_file", type=str, required=False, help="Path to the data_split config file.")
+    parser.add_argument("--split_config_file", type=str, required=True, help="Path to the data_split config file.")
     parser.add_argument("--embed_config_file", type=str, required=True, help="Path to the embedding config file.")
     return parser.parse_args()
-
-def validate(args):
-    # load the embed config
-    embed_cfg = load_config(args.embed_config_file)
-
-    use_saved = getattr(embed_cfg.model, "use_saved_model", None)
-
-    # if NOT using a saved model, we need a dataset_dir in the embed config
-    if not use_saved and not getattr(embed_cfg, "dataset_dir", None):
-        raise ValueError(
-            "ERROR: 'dataset_dir' must be specified in your embed config when not using a saved model."
-        )
-
-    # if using a saved model, the --split_config_file CLI arg becomes required
-    if use_saved and args.split_config_file is None:
-        raise ValueError(
-            "ERROR: --split_config_file must be specified when 'use_saved_model' is true in the embed_config."
-        )
-
-    # 3) If using a saved model, we now load the train & split configs
-    if use_saved:
-        embed_cfg = load_config(args.embed_config_file, args.split_config_file)
-    # 4) Otherwise, just return the embed config
-    return embed_cfg
 
 
 def setup_logger_and_out(config):
     """
     Returns logger and output directories after creating necessary directories.
     """
-    if config.model.use_saved_model:
+    if config.model.use_pretrained_model:
+        model_data_dir, _ = get_split_dirs(config.split_config)
+        output_dir = os.path.join(model_data_dir, "Embedding", get_model_name(config.model))
+    else: # use_saved_model:
         # get saves_model_dir dynamically based on dataset_split_config
         _, model_data_dir = make_dirs(config)
         model_data_dir = os.path.join(model_data_dir, config.model.saved_model_name)
-        log_name = "log"
-    else:
-        model_data_dir = Path(config.dataset_dir)
-        log_name = f"log_{config.model.model_name}"
+        output_dir = os.path.join(model_data_dir, "Embedding")
 
-    output_dir = os.path.join(model_data_dir, "Embedding")
     os.makedirs(output_dir, exist_ok=True)
+    log_name = "log"
     logger = CustomLogger(__name__, log_directory=str(output_dir), log_file=log_name)
     logger.log_message(f"Configuration loaded: {config}")
     logger.log_message(f"Saving outputs to: {output_dir}")
@@ -87,10 +62,22 @@ def replace_heads_with_identity(model, head_attr):
             raise AttributeError(f"Model has no attribute '{head}'")
         setattr(model, head, nn.Identity())  # Replace head with nn.Identity() for inference
 
-def get_embeddings(loader, model, config):
+def load_embedding(logger, output_dir):
+    logger.log_message(f'Embedding already exists at {output_dir}!\n Reading file...')
+    split_embedding = torch.load(output_dir, map_location=torch.device('cpu'))
+    logger.log_message(
+        f"Read pooled (per_seq) embeddings in {output_dir} with shape {split_embedding['embeddings'].shape}")
+    return split_embedding
+
+def get_embeddings(logger, df, model, tokenizer, config, output_dir):
     """
     Collect embeddings for all batches in the loader.
     """
+    logger.log_message(f"Getting embeddings...")
+
+    ds = get_ds(config.model, tokenizer, df)
+    loader = DataLoader(ds, batch_size=config.eval_batch_size, shuffle=True)
+
     all_embeddings, all_seqs, all_labels = [], [], []
     with torch.no_grad():
         for seqs, data, labels in loader:
@@ -103,10 +90,20 @@ def get_embeddings(loader, model, config):
             all_labels.extend(labels)
 
     emb_tensor = torch.cat(all_embeddings, dim=0)
-
     per_seq_embd = get_per_sequence_embedding(config.model.pooling_method, emb_tensor)
 
-    return all_seqs, all_labels, emb_tensor, per_seq_embd
+    embedding_dict = {
+        "sequences": all_seqs,
+        "embeddings": per_seq_embd,
+        "labels": all_labels,
+    }
+
+    # Save
+    torch.save(embedding_dict, output_dir)
+    logger.log_message(f" Saved pooled (per_seq) embeddings to {output_dir} with shape {per_seq_embd.shape}"
+                       f"(initial shape: {emb_tensor.shape})")
+
+    return embedding_dict
 
 def get_per_sequence_embedding(pooling_method, emb_tensor):
     """
@@ -121,81 +118,41 @@ def get_per_sequence_embedding(pooling_method, emb_tensor):
         raise ValueError(f"Unknown pooling_method: {pooling_method}")
     return pooling_methods[pooling_method]
 
-def make_split_embeddings_for_folds(splits, model, tokenizer, model_name, config, logger, save_dir, fold):
+def make_split_embeddings_for_fold(fold, splits, model, tokenizer, config, logger, output_dir):
     """
-    Extract embeddings for each fold and save them.
+    Extract embeddings for fold and save.
     """
+    embedding_name = f"Fold-{fold}.pt"
+    split_embeddings = {}
     for split_name, split in splits.items():
         logger.log_message(f'********* Dataset: {split_name} *********')
 
-        embedding_file = f"{split_name}-{model_name}"
-        if embedding_file in os.listdir(save_dir):
-            logger.log_message(f'Embedding for {embedding_file} already exists at {save_dir}!\n Skipping...')
-            continue
+        if split_name == "test":
+            df = split
+            logger.log_message(f"df:{split_name} with {len(df)} rows")
+            if config.model.use_pretrained_model:
+                embedding_name = f"test.pt"
+        else:
+            df = split.get(fold)
+            logger.log_message(f"df:{split_name}(Fold:{fold}) with {len(df)} rows")
 
-        df = split if split_name == "test" else split.get(fold)
-
-        logger.log_message(f"{split_name}(Fold-{fold}) with {len(df)} rows")
-
-        ds = get_ds(config.model, tokenizer, df)
-        loader = DataLoader(ds, batch_size=config.eval_batch_size, shuffle=True)
-
-        logger.log_message(f"Getting embeddings...")
-        all_seqs, all_labels, all_embeddings, per_seq_embd = get_embeddings(loader, model, config)
-        out_dict = {
-            "sequences": all_seqs,
-            "embeddings": per_seq_embd,
-            "labels": all_labels,
-        }
-        # Save
-        out_file = f"{save_dir}/{embedding_file}"
-        torch.save(out_dict, out_file)
-        logger.log_message(f" Saved pooled (per_seq) embeddings to {out_file} with shape {per_seq_embd.shape}"
-                           f"(initial shape: {all_embeddings.shape})")
-
-def make_embeddings_for_pretrained_model(logger, csv_items, model, head_attr, tokenizer, output_dir, config):
-    for csv_key, csv_path in csv_items:
-        logger.log_message(f'****************************************************************\n'
-                           f'\n--- Processing CSV {csv_key}')
-
-        df = pd.read_csv(csv_path)
-        logger.log_message(f" Read {len(df)} rows from {csv_path}")
-
-        save_dir = os.path.join(output_dir, Path(csv_key).stem)
+        save_dir = os.path.join(output_dir, f"split-{split_name}")
         os.makedirs(save_dir, exist_ok=True)
+        embedding_path = f"{save_dir}/{embedding_name}"
 
-        if directory_not_empty(save_dir):
-            raise ValueError(f'Embedding already exists at {save_dir}!')
+        if os.path.exists(embedding_path): # this will also check that embedding for test set once IF using pretrained model
+            # Read
+            split_embedding = load_embedding(logger, embedding_path)
 
-        logger.log_message(f'Will save embeddings at {save_dir}')
+        else:
+            split_embedding = get_embeddings(logger, df, model, tokenizer, config, embedding_path)
 
-        ds = get_ds(config.model, tokenizer, df)
-        loader = DataLoader(ds, batch_size=config.eval_batch_size, shuffle=True)
-
-        # Swap out head
-        replace_heads_with_identity(model, head_attr)
-        model.to(config.device).eval()
-
-        logger.log_message(f"Getting embeddings for {config.model.model_name}...")
-        all_seqs, all_labels, all_embeddings, per_seq_embd = get_embeddings(loader, model, config)
-        out_dict = {
-            "sequences": all_seqs,
-            "embeddings": per_seq_embd,
-            "labels": all_labels,
-        }
-        # Save
-        name = config.model.model_name
-        if getattr(config.model, 'model_version', None):
-            name = name + '_' + config.model.model_version
-
-        out_file = f"{save_dir}/{name}.pt"
-        torch.save(out_dict, out_file)
-        logger.log_message(f" Saved pooled (per_seq) embeddings to {out_file} with shape {per_seq_embd.shape}"
-                           f"(initial shape: {all_embeddings.shape})")
+        split_embeddings[split_name] = split_embedding
+    return split_embeddings
 
 if __name__ == "__main__":
     args = parse_arg()
-    config = validate(args)
+    config = load_config(args.embed_config_file, args.split_config_file)
 
     logger, model_data_dir, output_dir = setup_logger_and_out(config)
     config.device = set_device(config.device)
@@ -206,18 +163,25 @@ if __name__ == "__main__":
     # store the initial state dict of the model
     base_sd = model.state_dict()
 
-    if config.model.use_saved_model:
+    # Swap out head in pretrained model
+    replace_heads_with_identity(model, head_attr)
+    model.to(config.device).eval()
+
+    if not config.model.use_pretrained_model: # saved_model
         model_files = get_models(model_data_dir)
         logger.log_message(f'Using saved model(s) in {model_data_dir} for prediction:\n{model_files}')
-        logger.log_message(f'Will save embeddings at {output_dir}')
 
-        dfs_train, dfs_val, df_test = DataSplit.get_splits(logger, config.split_config, label='label')
-        splits = {'train': dfs_train, 'val': dfs_val, 'test': df_test}
+    logger.log_message(f'Will save embeddings at {output_dir}')
 
-        for fold in range(1, config.split_config.fold + 1):
+    dfs_train, dfs_val, df_test = DataSplit.get_splits(logger, config.split_config, label='label')
+    splits = {'train': dfs_train, 'val': dfs_val, 'test': df_test}
+
+    for fold in range(1, config.split_config.fold + 1):
+        logger.log_message(f' **************************Fold {fold} **************************')
+        if not config.model.use_pretrained_model: #use_saved_model
             # reset the model to the initial state before loading the saved model.
             model.load_state_dict(base_sd, strict=False)
-            logger.log_message(f' **************************{fold} **************************')
+
             model_name = f'Fold-{fold}.pt'
 
             if model_name not in model_files:
@@ -231,10 +195,10 @@ if __name__ == "__main__":
             replace_heads_with_identity(model, head_attr)
             model.to(config.device).eval()
 
-            make_split_embeddings_for_folds(splits, model, tokenizer, model_name, config, logger, output_dir, fold)
+        fold_split_embeddings = make_split_embeddings_for_fold(
+            fold, splits, model, tokenizer, config, logger, output_dir)
 
-    else:  # pretrained model
-        csv_items = list_datasets(Path(config.dataset_dir)).items()
-        logger.log_message(f"{len(csv_items)} CSVs:\n{csv_items}")
-
-        make_embeddings_for_pretrained_model(logger, csv_items, model, head_attr, tokenizer, output_dir, config)
+        logger.log_message(f"Visualize embedding for Fold: {fold}")
+        plot_dir = os.path.join(output_dir, 'plots')
+        os.makedirs(plot_dir, exist_ok=True)
+        visualize_embeddings(fold_split_embeddings, plot_dir, f"Fold-{fold}")

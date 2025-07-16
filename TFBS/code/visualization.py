@@ -2,6 +2,10 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import roc_curve, auc, precision_recall_curve
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+import umap
+import torch
 
 # def plot_loss(param_combinations, train_loss_per_param, val_loss_per_param, plot_dir, plot_name):
 #     plt.figure(figsize=(8, 6))
@@ -71,3 +75,89 @@ def plot_roc_pr(type, true_labels, probs, x_name, y_name, plot_dir, name):
     plt.savefig(plot_path)
     plt.close()
     print(f"Saved {type} as PDF file at {plot_path}.")
+
+
+# visualizes the embeddings from the different splits (train, val, test)
+# using PCA, T-SNE, and UMAP
+def visualize_embeddings(fold_split_embeddings, output_dir, fold_name):
+    """
+    fold_split_embeddings : {train, train_embed, val: val_embed: test: test_embed}
+    each embed is a dict of keys: "sequences", "embeddings", "labels"
+      train_embed embeddings of shape (N_train,  emb_size)
+      val_embed embeddings of shape (N_valid,  emb_size)
+      test_embed embeddings of shape (N_test,   emb_size)
+
+    do dimension reduction for each embedding based on 1."PCA" 2."T-SNE" 3."UMAP"
+    shape code each label
+    color code each split
+    """
+    pca = PCA(n_components=2)
+    tsne = TSNE(n_components=2)
+    umap_model = umap.UMAP(n_components=2)
+
+    # define different colors for train, validation, and test
+    colors = {
+        'train': '#AEC6CF',  # Pastel Blue
+        'val': '#FFD1DC',  # Pastel Pink
+        'test': '#FFB347',  # Pastel Orange
+    }
+    # define different markers for labels 0 and 1
+    markers = {0: 'o', 1: '^'}
+
+    # loop through each dimensionality reduction method
+    for method, model in zip(["PCA", "T-SNE", "UMAP"], [pca, tsne, umap_model]):
+        plt.figure(figsize=(8, 6))
+
+        # loop through each split
+        for split, embed_data in fold_split_embeddings.items():
+            embeddings = embed_data['embeddings']
+            labels = embed_data['labels']
+
+            # ensure embeddings are on CPU and convert to numpy array
+            if isinstance(embeddings, torch.Tensor):
+                embeddings = embeddings.cpu().numpy()
+
+
+            if isinstance(labels, list):
+                # convert labels to numpy array if they are a list
+                try:
+                    labels = np.concatenate([np.array(label) for label in labels], axis=0)
+                except ValueError:
+                    raise ValueError(f"Error: Inconsistent label shapes in {split}.")
+            elif isinstance(labels, torch.Tensor):
+                # move tensor to CPU and convert to numpy array
+                labels = labels.cpu().numpy()
+
+            # apply dimensionality reduction
+            reduced_embeddings = model.fit_transform(embeddings)
+
+            # Scatter plot
+            for label in np.unique(labels):  # loop over unique labels (0 and 1)
+                label_indices = np.where(labels == label)[0]
+                plt.scatter(
+                    reduced_embeddings[label_indices, 0], reduced_embeddings[label_indices, 1],
+                    c=[colors[split]] * len(label_indices),  # Use color for the split
+                    marker=markers[label],  # Use different marker for label 0 and 1
+                    s=5
+                )
+
+        plt.title(f'{method} Embedding Visualization for {fold_name}')
+        plt.xlabel('Component 1')
+        plt.ylabel('Component 2')
+
+        # separate legend for color (split)
+        for split, color in colors.items():
+            plt.scatter([], [], color=color, label=f'Split: {split}')
+
+        # separate legend for shapes (labels)
+        for label, marker in markers.items():
+            plt.scatter([], [], color='black', marker=marker, label=f'Label: {label}')
+
+        plt.legend()
+
+        # save the plot
+        output_path = os.path.join(output_dir, method)
+        os.makedirs(output_path, exist_ok=True)
+        output_path = f"{output_path}/{fold_name}-embedding.png"
+        plt.savefig(output_path, dpi=300)
+        plt.close()
