@@ -16,7 +16,7 @@ from sklearn.metrics import (
 )
 
 from early_stop import EarlyStopping
-from visualization import plot_roc_pr
+from TFBS.code.visualization import plot_roc_pr
 from utils import adjust_learning_rate
 
 class Train_Test:

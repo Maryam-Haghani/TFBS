@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from logger import CustomLogger
 from utils import load_config, make_dirs, get_models, get_split_dirs
 from model_utils import load_model, get_model_head_attributes, init_model_and_tokenizer, get_ds, set_device, get_model_name
-from visualization import visualize_embeddings
+from TFBS.code.visualization import visualize_embeddings
 from data_split import DataSplit
 
 # python 05-get_embedding.py --config_file [config_path]
