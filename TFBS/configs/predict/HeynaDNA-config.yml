@@ -5,7 +5,7 @@ model:
   model_version: "hyenadna-tiny-1k-seqlen"
   use_padding: true
   max_length: 264
-  saved_model_dir: "../outputs/ABFs_cross-species/test-At/HyenaDNA/hyenadna-tiny-1k-seqlen/standard/relaxed/models/"
+  saved_model_dir: "../outputs/ABFs_cross-species/test-Si/HyenaDNA/hyenadna-tiny-1k-seqlen/standard/relaxed/models/freeze_layers_none_train_batch_size_32_learning_rate_0.0001_weight_decay_0.1"
 
 device: "cuda"
 eval_batch_size: 32

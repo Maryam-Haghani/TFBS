@@ -12,6 +12,15 @@ class FoundationDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.df)
 
+    def pad_sequence_to_max_length(self, seq):
+        # Pad or truncate sequence to max_length
+        if len(seq) > self.max_length:
+            seq = seq[:self.max_length]
+
+        padding = torch.full((self.max_length - len(seq),), self.tokenizer.pad_token_id)
+        padded_seq = torch.cat([seq, padding])
+        return padded_seq
+
     def __getitem__(self, idx):
         sequence = self.df.iloc[idx]['sequence']
         label = self.df.iloc[idx]['label']
