@@ -16,14 +16,15 @@ from sklearn.metrics import (
 )
 
 from early_stop import EarlyStopping
-from TFBS.code.visualization import plot_roc_pr
+from visualization import plot_roc_pr
 from utils import adjust_learning_rate
 
 class Train_Test:
-    def __init__(self, logger, device, eval_batch_size, training_params=None):
+    def __init__(self, logger, device, eval_batch_size, test_mode="df", training_params=None):
         self.logger = logger
         self.device = device
         self.eval_batch_size = eval_batch_size
+        self.test_mode = test_mode
         self.training = training_params
 
     # freeze specified layers by setting `requires_grad` to False.
@@ -75,6 +76,91 @@ class Train_Test:
         avg_train_loss = train_loss / total
 
         return avg_train_loss
+
+    def train(self, ds_train, ds_val, model_name, model_dir, wandb):
+        self._freeze_layers()
+
+        self.logger.log_message(f'model name: {model_name}')
+
+        # total number of parameters
+        total_params = sum(p.numel() for p in self.model.parameters())
+        self.logger.log_message(f"Total parameters: {total_params}")
+
+        # trainable parameters
+        trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        self.logger.log_message(f"Trainable parameters: {trainable_params}")
+
+
+        self.logger.log_message(f"Training...")
+        train_loader = DataLoader(ds_train, batch_size=self.training.model_params.train_batch_size, shuffle=True)
+        val_loader = DataLoader(ds_val, batch_size=self.eval_batch_size, shuffle=False)
+
+        loss_fn = nn.CrossEntropyLoss()
+
+        # self.model.parameters(): the optimizer will update all parameters of the model during backpropagation.
+        # This includes the pre-trained weights and the classification head that have been added to the model.
+        optimizer = optim.AdamW(self.model.parameters(),
+                                lr=float(self.training.model_params.learning_rate),
+                                weight_decay=float(self.training.model_params.weight_decay))
+
+        self.model.to(self.device)
+
+        early_stopping = EarlyStopping(
+            logger = self.logger,
+            patience=self.training.early_stopping.patience,
+            verbose=True,
+            delta=self.training.early_stopping.delta
+        )
+
+        start_time = time.time()  # START TRAINING TIME
+
+        # training
+        for epoch in range(self.training.num_epochs):
+            self.logger.log_message(f'Epoch {epoch+1}/{self.training.num_epochs}')
+
+            train_loss = self._train(train_loader, optimizer, epoch, loss_fn)
+            val_acc, val_auroc, val_auprc, val_f1, val_mcc, val_loss = self._test(
+                val_loader, model_name, loss_fn=loss_fn
+            )
+
+            if wandb is not None:
+                wandb.log({
+                    "epoch": epoch + 1,
+                    "train loss": train_loss,
+                    "val loss": val_loss,
+                    "val ACC": val_acc,
+                    "val AUROC": val_auroc,
+                    "val AUPRC": val_auprc,
+                    "val F1": val_f1,
+                    "val MCC": val_mcc
+                })
+            else:
+                self.logger.log_message("wandb is not enabled. Skipping logging.")
+
+            # check early stopping criteria
+            early_stopping(val_loss, self.model, epoch)
+            if early_stopping.early_stop:
+                self.logger.log_message(f"Early stopping triggered. Stopping training at epoch {epoch+1}.")
+                break
+
+        training_time = time.time() - start_time  # END TRAINING TIME
+
+        if early_stopping.early_stop:
+            best_epoch = early_stopping.best_epoch
+        else:
+            best_epoch = self.training.num_epochs -1
+
+        # reload the best model weights saved during training
+        if early_stopping.best_model_state is not None:
+            self.model.load_state_dict(early_stopping.best_model_state)
+            self.logger.log_message(f"Loaded best model weights from epoch {best_epoch+1}.") # converting 0-indexed to 1-indexed
+
+            # save the model
+            model_path = os.path.join(model_dir, f'{model_name}.pt')
+            torch.save(self.model.state_dict(), model_path)
+            self.logger.log_message(f"Best model saved as: {model_path}")
+
+        return f'{trainable_params} / {total_params}', best_epoch+1, val_acc, val_auroc, val_auprc, val_f1, val_mcc, training_time
 
     def _test(self, test_loader, model_name, loss_fn=None, test_result_dir=None):
         self.model.eval()
@@ -167,87 +253,31 @@ class Train_Test:
         test_time = time.time() - start_time  # END TEST TIME
         return acc, auroc, auprc, f1, mcc, test_time
 
-    def train(self, ds_train, ds_val, model_name, model_dir, wandb):
-        self._freeze_layers()
-
-        self.logger.log_message(f'model name: {model_name}')
-
-        # total number of parameters
-        total_params = sum(p.numel() for p in self.model.parameters())
-        self.logger.log_message(f"Total parameters: {total_params}")
-
-        # trainable parameters
-        trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
-        self.logger.log_message(f"Trainable parameters: {trainable_params}")
-
-
-        self.logger.log_message(f"Training...")
-        train_loader = DataLoader(ds_train, batch_size=self.training.model_params.train_batch_size, shuffle=True)
-        val_loader = DataLoader(ds_val, batch_size=self.eval_batch_size, shuffle=False)
-
-        loss_fn = nn.CrossEntropyLoss()
-
-        # self.model.parameters(): the optimizer will update all parameters of the model during backpropagation.
-        # This includes the pre-trained weights and the classification head that have been added to the model.
-        optimizer = optim.AdamW(self.model.parameters(),
-                                lr=float(self.training.model_params.learning_rate),
-                                weight_decay=float(self.training.model_params.weight_decay))
-
+    def predict(self, model, ds, test_result_dir=None, model_name=None):
+        self.model = model
         self.model.to(self.device)
 
-        early_stopping = EarlyStopping(
-            logger = self.logger,
-            patience=self.training.early_stopping.patience,
-            verbose=True,
-            delta=self.training.early_stopping.delta
-        )
-
-        start_time = time.time()  # START TRAINING TIME
-
-        # training
-        for epoch in range(self.training.num_epochs):
-            self.logger.log_message(f'Epoch {epoch+1}/{self.training.num_epochs}')
-
-            train_loss = self._train(train_loader, optimizer, epoch, loss_fn)
-            val_acc, val_auroc, val_auprc, val_f1, val_mcc, val_loss = self._test(
-                val_loader, model_name, loss_fn=loss_fn
-            )
-
-            if wandb is not None:
-                wandb.log({
-                    "epoch": epoch + 1,
-                    "train loss": train_loss,
-                    "val loss": val_loss,
-                    "val ACC": val_acc,
-                    "val AUROC": val_auroc,
-                    "val AUPRC": val_auprc,
-                    "val F1": val_f1,
-                    "val MCC": val_mcc
-                })
-            else:
-                self.logger.log_message("wandb is not enabled. Skipping logging.")
-
-            # check early stopping criteria
-            early_stopping(val_loss, self.model, epoch)
-            if early_stopping.early_stop:
-                self.logger.log_message(f"Early stopping triggered. Stopping training at epoch {epoch+1}.")
-                break
-
-        training_time = time.time() - start_time  # END TRAINING TIME
-
-        if early_stopping.early_stop:
-            best_epoch = early_stopping.best_epoch
+        if self.test_mode=='df':
+            return self.test(ds, model_name, test_result_dir)
+        elif self.test_mode=='genome':
+            return self._predict(ds)
         else:
-            best_epoch = self.training.num_epochs -1
+            raise ValueError(f'Given mode {self.test_mode} is not valid!')
 
-        # reload the best model weights saved during training
-        if early_stopping.best_model_state is not None:
-            self.model.load_state_dict(early_stopping.best_model_state)
-            self.logger.log_message(f"Loaded best model weights from epoch {best_epoch+1}.") # converting 0-indexed to 1-indexed
+    def _predict(self, ds):
+        dataloader = DataLoader(ds, batch_size=self.eval_batch_size, shuffle=False)
+        self.model.eval()
+        predictions = []
+        with torch.no_grad():
+            for sequences, data, start_idx, end_idx in dataloader:
+                data = data.to(self.device)
+                output = self.model(data)
+                logits = output.logits if isinstance(output, SequenceClassifierOutput) else output
 
-            # save the model
-            model_path = os.path.join(model_dir, f'{model_name}.pt')
-            torch.save(self.model.state_dict(), model_path)
-            self.logger.log_message(f"Best model saved as: {model_path}")
+                probs = F.softmax(logits, dim=1)  # probabilities for each class
+                pos_probs = probs[:, 1].cpu().numpy()
+                start = start_idx.numpy()
+                end = end_idx.numpy()
 
-        return f'{trainable_params} / {total_params}', best_epoch+1, val_acc, val_auroc, val_auprc, val_f1, val_mcc, training_time
+                predictions.extend(list(zip(start, end, pos_probs)))
+        return predictions

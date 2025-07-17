@@ -84,21 +84,23 @@ def init_model_and_tokenizer(logger, config, device):
         raise ValueError(f'Given model name ({config.model_name}) is not valid!')
     return model, tokenizer
 
-def get_ds(config, tokenizer, df):
+def get_ds(config, tokenizer, data, mode="df", window_size=None, stride=None):
     """
         Get test dataset based on the specified model name.
     """
+
     if config.model_name not in get_available_models():
         raise ValueError(f'Given model name ({config.model_name}) is not valid!')
     elif config.model_name == 'DeepBind':
-        ds_test = DeepBindDataset(df, config.max_length, config.kernel_length)
+        ds = DeepBindDataset(data, config.max_length, config.kernel_length)
     else:
-        ds_test = FoundationDataset(config.model_name, tokenizer, df, config.max_length)
+        ds = FoundationDataset(mode, config.model_name, tokenizer, data, config.max_length,
+                               window_size=window_size, stride=stride)
 
         if config.model_name == 'HyenaDNA':
-            ds_test = FoundationDataset(config.model_name, tokenizer, df,
-                                         config.max_length, config.use_padding)
-    return ds_test
+            ds = FoundationDataset(mode, config.model_name, tokenizer, data, config.max_length,
+                                   window_size=window_size, stride=stride, use_padding=config.use_padding)
+    return ds
 
 def get_model_name(config):
     name = config.model_name

@@ -138,29 +138,40 @@ Trained models and logs are saved in `<config.output_dir>/<split_config.name>/`
 
 ## 4. Prediction
 ### Description
-This script generates predictions from saved pre-trained models on a test dataset.
+This script generates predictions from saved pre-trained models for a dataframe or a genome sequence.
 
 ### Usage
 To run the script, use the following command:
 
 ```bash
-python 04-predict.py --config_file [config_path]
+python 04-predict.py --config_file [config_path] --mode= [mode]
 ```
 
 #### Arguments
 
 - `--config_file`: The path to the configuration YAML file.
+--mode: Specifies the data mode. Use "df" when the input data is in a dataframe format with `sequence` and `label` columns. Use "genome" when the input is a sequence, and the script predicts whether any fragment of the sequence, with a length defined by `config.window_size` and a stride defined by `config.stride`, is a binding site.
 
-#### Example
+### Example
+#### mode = "df"
 ```bash
-python 04-predict.py --config_file ../configs/predict/HeynaDNA-config.yml
+python 04-predict.py --config_file ../configs/predict/HeynaDNA-config.yml --mode df
 ```
+##### Output
+A directory named `<config.input_dir without extension>` will be created inside the `Predictions` folder, located within the saved model directory (`config.saved_model_dir`).
+Inside this directory, a CSV file containing predictions will be saved, named after each model, corresponding to the models saved in the model directory.
+Additionally, a `prediction_result.csv` file will be generated, summarizing performance metrics for all models.
 
-### Output
-
+#### mode = "genome"
+```bash
+python 04-predict.py --config_file ../configs/genome_predict/HeynaDNA-config.yml --mode genome
+```
+##### Output
+A directory named `<config.input_dir without extension>` will be created inside the `Predictions` folder within the saved model directory (`config.saved_model_dir`).
+In this directory, a plot will be saved for each model, with the filename following the template: `peak-[model_name]-window_size_[config.window_size]-stride_[config.stride].png`.
 
 ## 5. Embedding Generation and Visualization
-This script extracts embeddings from a pre-trained or saved model, and visualizes them using PCA, T-SNE, or UMAP.
+This script extracts embeddings from a pre-trained or saved model for a data split, and visualizes them using PCA, T-SNE, or UMAP.
 The script supports the use of pre-trained models or saved models, based on the configuration provided (`use_pretrained_model`).
 
 Each model has its own config in `/configs/embedding`.

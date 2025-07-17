@@ -161,3 +161,29 @@ def visualize_embeddings(fold_split_embeddings, output_dir, fold_name):
         output_path = f"{output_path}/{fold_name}-embedding.png"
         plt.savefig(output_path, dpi=300)
         plt.close()
+
+def plot_peaks(predictions, output_dir, name):
+    plt.figure(figsize=(12, 6))
+
+    # plot each sliding window
+    for start, end, prob in predictions:
+        plt.plot([start, end], [prob, prob], color='blue', linewidth=1)  # Line with constant probability
+
+    # plot smooth line based on start positions
+    start_positions, end_positions, probabilities = zip(*predictions)
+    plt.plot(start_positions, probabilities, color='gray', linewidth=1,
+             linestyle='dashed', label='Smooth Probability Curve based on start positions')
+
+    # Pplot the horizontal line Y = 0.5
+    plt.axhline(y=0.5, color='red', linestyle='--', label='Random Predictor')
+
+    plt.title(f'TF Binding Probability Across Sequence for {name}')
+    plt.xlabel('Sequence Position')
+    plt.ylabel('Probability')
+    plt.grid(True)
+    plt.legend()
+
+    # save the plot
+    output_path = f"{output_dir}/peak-{name}.png"
+    plt.savefig(output_path, dpi=300)
+    plt.close()

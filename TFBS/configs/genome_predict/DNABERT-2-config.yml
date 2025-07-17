@@ -7,3 +7,5 @@ model:
 
 device: "cuda"
 eval_batch_size: 32
+window_size: 264
+stride: 50

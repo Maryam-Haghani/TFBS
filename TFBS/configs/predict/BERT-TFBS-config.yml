@@ -1,4 +1,4 @@
-dataset_dir: ""
+input_dir: ""
 
 model:
   model_name: "BERT-TFBS"
