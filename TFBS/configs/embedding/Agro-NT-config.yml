@@ -10,6 +10,6 @@ model:
   use_pretrained_model: true
   saved_model_name: ""
 
-# required when use_saved_model is true
+# required when use_pretrained_model is false (use_saved_model)
 output_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/outputs"
 
