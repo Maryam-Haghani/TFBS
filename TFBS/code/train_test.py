@@ -175,17 +175,16 @@ class Train_Test:
         if method == 'smoothgrad':
             base = Saliency(self.model)
             self.interpreter = NoiseTunnel(base)
-            # defaults for NoiseTunnel — feel free to expose these too
+            # defaults for NoiseTunnel
             self._interp_kwargs = {
-                'nt_type': 'smoothgrad',
+                'nt_type': method,
                 'nt_samples': 50,
                 'stdevs': 0.02
             }
         elif method == 'integrated':
             self.interpreter = IntegratedGradients(self.model)
             self._interp_kwargs = {
-                'n_steps': 100,
-                # will generate a zero baseline in _do_interpret
+                'n_steps': 100
             }
         else:  # plain Saliency
             self.interpreter = Saliency(self.model)
