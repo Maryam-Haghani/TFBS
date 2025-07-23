@@ -16,7 +16,7 @@ def parse_arguments():
     parser.add_argument("--neg_type", type=str, choices=["dinuc_shuffle","shuffle", "random"], required=False,
                         default="shuffle", help="Type of negative sample generation.")
     parser.add_argument("--species", type=str, choices=["Si", "At"], required=True, help="Species type: Si or At")
-    parser.add_argument("--dataset", type=str, choices=["Josey", "Ronan"], required=True, help="Origin of Dataset")
+    parser.add_argument("--dataset", type=str, choices=["Sun2022", "Malley2016"], required=True, help="Origin of Dataset")
     parser.add_argument("--sliding_window", type=int, required=False, default=200,
                         help="Size of sliding window for generating samples.")
     parser.add_argument("--fixed_length", type=int, required=False, default=None,
@@ -110,54 +110,59 @@ def calculate_padding(ind, peak_region_length, sliding_window, fixed_length):
     return left_pad, right_pad
 
 # Extract sequence
-def extract_sequence(fixed_length, full_sequence, start, end, left_pad, right_pad):
+def extract_sequence(peak_length, fixed_length, chromosome_sequence, start, end, left_pad, right_pad):
     sequence_start = max(0, start - left_pad)
-    sequence_end = min(len(full_sequence), end + right_pad)
-    sequence = full_sequence[sequence_start:sequence_end]
+    sequence_end = min(len(chromosome_sequence), end + right_pad)
+    sequence_len = sequence_end - sequence_start + 1
 
-    # Try to get more from the other side when fixed_length and couldn't get enough padding on one side
-    if fixed_length is not None and len(sequence) < fixed_length:
-        missing = fixed_length - len(sequence)
+    # try to get more from the other side when fixed_length and couldn't get enough padding on one side
+    if fixed_length is not None and sequence_len < fixed_length:
+        missing = fixed_length - sequence_len
         if sequence_start == 0:  # Couldn't get more on left, try right
-            sequence_end = min(len(full_sequence), end + right_pad + missing)
-        else:  # Couldn't get more on right, try left
+            sequence_end = min(len(chromosome_sequence), end + right_pad + missing)
+        else:  # couldn't get more on right, try left
             sequence_start = max(0, start - left_pad - missing)
 
-    sequence = full_sequence[sequence_start:sequence_end]
-    return sequence
+    sequence = chromosome_sequence[sequence_start:sequence_end+1]
+    peak_start_ind_in_padded_seq = start - sequence_start
+    peak_end_ind_in_padded_seq = peak_start_ind_in_padded_seq + peak_length - 1 # end_ind is inclusive
+    return sequence, peak_start_ind_in_padded_seq, peak_end_ind_in_padded_seq
+
 # Generate positive samples
 def generate_positive_samples(logger, peaks_df, fasta_sequences, species, sliding_window, fixed_length):
     logger.log_message("Generating positive samples...")
-    positive_samples = []
-    peaks = []
+    positive_samples, peaks, start_end_inds = [], [], []
     not_found = 0
 
     for ind, row in peaks_df.iterrows():
         chrom_id = process_chrom_id(row["ChrID"], species)
         start, end = row["start"], row["end"]
-        peak_region_length = end - start + 1
+        peak_length = end - start + 1 # end_ind is inclusive
 
         if chrom_id not in fasta_sequences:
             logger.log_message(f"Index {ind + 1}: {chrom_id} not in fasta file!")
             not_found += 1
             continue
 
-        left_pad, right_pad = calculate_padding(ind, peak_region_length, sliding_window, fixed_length)
+        left_pad, right_pad = calculate_padding(ind, peak_length, sliding_window, fixed_length)
 
         # Extract sequence with appropriate padding
         chromosome_sequence = fasta_sequences[chrom_id].seq
-        sequence = extract_sequence(fixed_length, chromosome_sequence, start, end, left_pad, right_pad)
+        sequence, peak_start_ind_in_padded_seq, peak_end_ind_in_padded_seq\
+            = extract_sequence(peak_length, fixed_length, chromosome_sequence, start, end, left_pad, right_pad)
 
         sequence = convert_non_standard_to_N(sequence)
         if all_N(sequence):
             logger.log_message(f"Row {ind + 1}: All bases are N, ignoring the row...")
         else:
             positive_samples.append((sequence.upper(), chrom_id))
-            peaks.append(chromosome_sequence[start:end])
+            peaks.append(chromosome_sequence[start:end+1])  # end_ind is inclusive
+            start_end_inds.append((peak_start_ind_in_padded_seq, peak_end_ind_in_padded_seq))
+
 
     logger.log_message(f"{not_found} out of {len(peaks_df)} rows not found in fasta file.")
     logger.log_message(f"Generated {len(positive_samples)} positive samples.")
-    return positive_samples, peaks
+    return positive_samples, peaks, start_end_inds
 
 def create_negative_sequence(neg_type, sequence, all_sequences):
     if neg_type == "shuffle":
@@ -192,10 +197,13 @@ if __name__ == "__main__":
 
     # Set random seed for reproducibility
     random.seed(args.seed)
+    output_dir = os.path.dirname(args.output_file)
+    os.makedirs(output_dir, exist_ok=True)
+    log_dir = os.path.join(output_dir, "log")
+    os.makedirs(log_dir, exist_ok=True)
 
-    log_name = os.path.splitext(args.peak_file.split('/')[-1])[0]
-    logger = CustomLogger(__name__, log_directory=os.path.dirname(args.peak_file),
-                          log_file=f'{log_name}.log')
+    log_name = os.path.splitext(args.output_file.split('/')[-1])[0]
+    logger = CustomLogger(__name__, log_directory=log_dir, log_file=f'{log_name}.log')
     logger.log_message(f"Args: {args}")
 
     # load input files
@@ -205,7 +213,7 @@ if __name__ == "__main__":
     peaks_df = pd.read_csv(args.peak_file)
     logger.log_message(f"Loaded peak file {args.peak_file} with {len(peaks_df)} sequences.")
 
-    positive_samples, peaks = generate_positive_samples(logger, peaks_df, fasta_sequences, args.species,
+    positive_samples, peaks, peak_start_end_inds_in_padded_seq = generate_positive_samples(logger, peaks_df, fasta_sequences, args.species,
                                                         args.sliding_window, args.fixed_length)
     negative_samples = generate_negative_samples(logger, positive_samples, args.neg_type, fasta_sequences)
 
@@ -215,9 +223,13 @@ if __name__ == "__main__":
         "chromosomeId": [chrom for _, chrom in positive_samples + negative_samples],
         'dataset': [args.dataset] * (len(positive_samples) + len(negative_samples)),
         "peak": [peak for peak in peaks + peaks],
+        "peak_start_end_index": [start_end_ind for start_end_ind in
+                                 peak_start_end_inds_in_padded_seq + peak_start_end_inds_in_padded_seq],
         "sequence": [seq for seq, _ in positive_samples + negative_samples],
         "label": [1] * len(positive_samples) + [0] * len(negative_samples)
     })
+    # add unique identifier
+    data.insert(0, 'uid', range(1, len(data) + 1))
 
     data.to_csv(args.output_file, index=False)
     logger.log_message(f"Output saved to {args.output_file} with {len(data)} samples.")

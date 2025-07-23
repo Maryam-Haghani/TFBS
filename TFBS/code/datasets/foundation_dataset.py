@@ -1,4 +1,5 @@
 import torch
+import ast
 
 class FoundationDataset(torch.utils.data.Dataset):
     def __init__(self, mode, model_name, tokenizer, data, max_length, window_size=None, stride=None, use_padding=True, add_eos=False):
@@ -31,8 +32,10 @@ class FoundationDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         if self.mode == "df":
+            uid = self.data.iloc[idx]['uid']
             sequence = self.data.iloc[idx]['sequence']
             label = self.data.iloc[idx]['label']
+            peak_start, peak_end = ast.literal_eval(self.data.iloc[idx]['peak_start_end_index'])
         elif self.mode == "genome":
             # calculate the start and end index for the current window based on the stride
             start_idx = idx * self.stride
@@ -60,6 +63,6 @@ class FoundationDataset(torch.utils.data.Dataset):
 
         if self.mode == "df":
             label = torch.LongTensor([label])
-            return sequence, tokenized_seq, label
+            return sequence, tokenized_seq, uid, peak_start, peak_end, label
         elif self.mode == "genome":
             return sequence, tokenized_seq, start_idx, end_idx

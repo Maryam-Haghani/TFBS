@@ -1,4 +1,5 @@
 import torch
+import ast
 
 class DeepBindDataset(torch.utils.data.Dataset):
     def __init__(self, df, max_length, kernel_length, sequence_column='sequence', label_column='label'):
@@ -14,6 +15,8 @@ class DeepBindDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         sequence = self.df.iloc[idx][self.sequence_column]
         label = self.df.iloc[idx][self.label_column]
+        uid = self.df.iloc[idx]['uid']
+        peak_start, peak_end = ast.literal_eval(self.df.iloc[idx]['peak_start_end_index'])
 
         padded_sequence = self.pad_or_trim_sequence(sequence)
         padded_sequence = self.pad_to_kernel_size(padded_sequence)
@@ -21,7 +24,7 @@ class DeepBindDataset(torch.utils.data.Dataset):
 
         label = torch.LongTensor([label])
 
-        return sequence, encoded_sequence, label
+        return sequence, encoded_sequence, uid, peak_start, peak_end, label
 
     def pad_or_trim_sequence(self, sequence):
         """
