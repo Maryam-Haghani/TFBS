@@ -212,7 +212,7 @@ class Train_Test:
         chosen_tgt = pred_labels[chosen]  # model's correct prediction
         # for IntegratedGradients we need a baseline:
         if isinstance(self.interpreter, IntegratedGradients):
-            baseline = torch.zeros_like(chosen_emb)
+            baseline = torch.full_like(chosen_emb, 4, requires_grad=True) # choose baseline to be all PAD tokens
             attributions = self.interpreter.attribute(
                 chosen_emb,
                 baselines=baseline,
