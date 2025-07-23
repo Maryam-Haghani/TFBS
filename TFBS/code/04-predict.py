@@ -70,7 +70,7 @@ if __name__ == "__main__":
     args = parse_arguments()
     config = load_config(args.config_file)
     config.num_saliency_samples = getattr(config, "num_saliency_samples", 0) # set to 0 if None
-    config.saliency_method = getattr(config, "saliency_method", 'smoothgrad') # set to 'smoothgrad' if None
+    config.saliency_method = getattr(config, "saliency_method", 'smooth') # set to 'smooth' if None
 
     validate_saved_model_dir(config.model)
     model_files = get_models(config.model.saved_model_dir)

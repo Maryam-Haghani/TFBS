@@ -169,11 +169,19 @@ Each plot answers the question: “Which parts of this input actually tipped the
 This way, we get a glimpse of which inputs the network was most sensitive to, rather than treating it as a black box.
 
 Here we have three interpret options:
-- **`vanilla`**: The classic gradient‐based saliency map. It takes the gradient of the output score for the predicted class with respect to each input feature (e.g. each token embedding). The magnitude of that gradient tells us how much a tiny change in that feature would change the score.
-- **`smoothgrad`** (default): A noise‑averaged version of saliency that yields clearer, less noisy attributions. It adds small random noise to the input multiple times and computes a saliency map for each noisy sample, and averages all those maps together.
-SmoothGrad filters out spurious spikes and highlights the features that consistently matter.
-- **`integrated`**: A path‑integral approach that measures how the model’s output changes as we move from a “neutral” baseline to the actual input. It picks a simple baseline input (all zeros in our case) and creates a series of intermediate inputs by interpolating between the baseline and the real input. Then, it computes gradients at each step and sum (integrate) them along that path.
-By accumulating gradient information over a continuous path, we get attributions that often more faithfully reflect the model’s decision than a single‑step gradient.
+- `vanilla`: The classic gradient‐based saliency map. It takes the gradient of the output score for the predicted class with respect to each input feature (e.g. each token embedding). The magnitude of that gradient tells us how much a tiny change in that feature would change the score.
+Can be very noisy, and may suffer from “gradient saturation” (i.e. zero gradients in flat regions).
+- `smooth`(default): **SmoothGrad**; A noise‑averaged version of vanilla gradiant that yields clearer, less noisy attributions. It adds small random noise to the input multiple times and computes a saliency map for each noisy sample, and averages all those maps together.
+SmoothGrad reduces random spikes and highlights the features that consistently matter.
+- `integrated`: **IntegratedGradients (IG)**; A path-integral method that measures how the model’s output evolves when transitioning from a chosen “neutral” baseline to the real input.
+Starting from a simple baseline point (e.g., an all‑zero input), it generates a series of interpolated inputs between that baseline and the target data, computes the gradient at each interpolation step, and then aggregates (integrates) those gradients along the path.
+Because it sums gradient contributions over the entire trajectory, the resulting attributions often capture the model’s reasoning more reliably than a single‐step gradient—and it typically requires dozens to hundreds of forward‑backward passes (e.g. 50–300) to approximate the integral.
+- `deeplift`: **DeepLift**; Back‑propagates the change in output—between the real input and a chosen baseline—through the network using layer‑specific rules for each nonlinearity (“rescale” or “reveal‑cancel”). It only requires one forward pass plus a single, modified backward pass to compute all attributions.
+
+[//]: # (- `shap`: **GradientShap**,)
+
+[//]: # (- **DeepLiftShap**: approximate Shapley by averaging DeepLift over multiple baselines.)
+
 #### mode = "genome"
 ```bash
 python 04-predict.py --config_file ../configs/genome_predict/HeynaDNA-config.yml --mode genome

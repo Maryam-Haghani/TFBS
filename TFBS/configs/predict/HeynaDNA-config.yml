@@ -9,5 +9,5 @@ model:
 
 device: "cuda"
 eval_batch_size: 32
-saliency_method: 'smoothgrad' # options:  'vanilla', 'smoothgrad', 'integrated'
-num_saliency_samples: 6
+saliency_method: 'smooth' # options:  'vanilla', 'smooth', 'integrated', 'deeplift'
+num_saliency_samples: 2

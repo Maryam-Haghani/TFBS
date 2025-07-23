@@ -14,7 +14,7 @@ from sklearn.metrics import (
     f1_score,
     matthews_corrcoef
 )
-from captum.attr import Saliency, NoiseTunnel, IntegratedGradients
+from captum.attr import Saliency, NoiseTunnel, IntegratedGradients, DeepLift
 
 from early_stop import EarlyStopping
 from visualization import plot_roc_pr, plot_saliency_maps_from_file
@@ -172,7 +172,7 @@ class Train_Test:
             'records': []
         }
 
-        if method == 'smoothgrad':
+        if method == 'smooth':
             base = Saliency(self.model)
             self.interpreter = NoiseTunnel(base)
             # defaults for NoiseTunnel
@@ -186,6 +186,9 @@ class Train_Test:
             self._interp_kwargs = {
                 'n_steps': 100
             }
+        elif method == 'deeplift':
+            self.interpreter = DeepLift(self.model)
+            self._interp_kwargs = {}  # no extra args
         else:  # plain Saliency
             self.interpreter = Saliency(self.model)
             self._interp_kwargs = {}  # no extra args
@@ -210,9 +213,11 @@ class Train_Test:
         # compute saliency
         chosen_emb = embeddings[chosen]
         chosen_tgt = pred_labels[chosen]  # model's correct prediction
-        # for IntegratedGradients we need a baseline:
-        if isinstance(self.interpreter, IntegratedGradients):
-            baseline = torch.full_like(chosen_emb, 4, requires_grad=True) # choose baseline to be all PAD tokens
+        # IntegratedGradients and DeepLift need a baseline
+        if isinstance(self.interpreter, IntegratedGradients)\
+                or isinstance(self.interpreter, DeepLift):
+            # choose baseline to be all PAD tokens
+            baseline = torch.full_like(chosen_emb, 4, requires_grad=True)
             attributions = self.interpreter.attribute(
                 chosen_emb,
                 baselines=baseline,
@@ -220,7 +225,7 @@ class Train_Test:
                 **self._interp_kwargs
             )
         else:
-            # covers both Saliency and NoiseTunnel
+            # covers Saliency and NoiseTunnel
             attributions = self.interpreter.attribute(
                 chosen_emb,
                 target=chosen_tgt,
@@ -332,7 +337,7 @@ class Train_Test:
                     'Precision', test_result_dir, model_name)
 
     def _test(self, test_loader, model_name,
-                            loss_fn=None, test_result_dir=None, num_saliency_samples=0, saliency_method='smoothgrad'):
+                            loss_fn=None, test_result_dir=None, num_saliency_samples=0, saliency_method='smooth'):
         """
             Runs either a full validation (with loss) or a prediction pass (saving per‐sample results
             and optionally collecting saliency attributions for a handful of correct samples).
@@ -443,7 +448,7 @@ class Train_Test:
 
 
     # compute metrics for test dataset
-    def test(self, ds_test, model_name, test_result_dir, num_saliency_samples=0, saliency_method='smoothgrad'):
+    def test(self, ds_test, model_name, test_result_dir, num_saliency_samples=0, saliency_method='smooth'):
         test_loader = DataLoader(ds_test, batch_size=self.eval_batch_size, shuffle=num_saliency_samples==0)
 
         start_time = time.time()  # START TEST TIME
@@ -452,7 +457,7 @@ class Train_Test:
         test_time = time.time() - start_time  # END TEST TIME
         return acc, auroc, auprc, f1, mcc, test_time
 
-    def predict(self, model, ds, test_result_dir=None, model_name=None, num_saliency_samples=10, saliency_method='smoothgrad'):
+    def predict(self, model, ds, test_result_dir=None, model_name=None, num_saliency_samples=10, saliency_method='smooth'):
         self.model = model
         self.model.to(self.device)
 
