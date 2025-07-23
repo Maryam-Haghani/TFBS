@@ -69,7 +69,7 @@ if __name__ == "__main__":
 
     ds_test = get_ds(config.model, tokenizer, df_test)
 
-    tt = Train_Test(logger, config.device, config.eval_batch_size, training_params=config.training)
+    tt = Train_Test(logger, config.model.max_length, config.device, config.eval_batch_size, training_params=config.training)
 
     model_param_values = list(vars(config.training.model_params).values())
     grid_combinations = list(product(*model_param_values))

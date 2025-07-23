@@ -69,11 +69,11 @@ python 01-generate_samples.py --fasta_file path/to/your.fasta --peak_file path/t
 #### Example
 ##### For *A. thaliana* (ABF1-4) dataset:
 ```bash
-python 01-generate_samples.py --fasta_file ../inputs/fastas/Arabidopsis_thaliana.TAIR10.dna_sm.toplevel.fa --peak_file ../inputs/peak_files/AtABFs_DAP-Seq_peaks.csv --species "At" --dataset Josey  --output_file ../inputs/AtABFs_shuffle_neg_stride_200.csv
+python 01-generate_samples.py --fasta_file ../inputs/fastas/Arabidopsis_thaliana.TAIR10.dna_sm.toplevel.fa --peak_file ../inputs/peak_files/Sun2022-AtABFs_DAP-Seq_peaks.csv --species "At" --dataset Sun2022  --output_file ../inputs/samples/Sun2022-AtABFs_shuffle_neg_stride_200.csv
 ```
 ##### For *S. irio* (ABF1-4) dataset:
 ```bash
-python 01-generate_samples.py --fasta_file ../inputs/fastas/Si_sequence --peak_file ../inputs/peak_files/SiABFs_DAP-Seq_peaks.csv --species "Si" --dataset Josey  --output_file ../inputs/SiABFs_shuffle_neg_stride_200.csv  
+python 01-generate_samples.py --fasta_file ../inputs/fastas/Si_sequence --peak_file ../inputs/peak_files/Sun2022-SiABFs_DAP-Seq_peaks.csv --species "Si" --dataset Sun2022  --output_file ../inputs/samples/Sun2022-SiABFs_shuffle_neg_stride_200.csv  
 ```
 ### Output
 This will generate positive and negative samples based on the given negative type generation, for the given species using the provided FASTA file and peak data, saving the results to `--output_file`.
@@ -105,7 +105,7 @@ Data split configurations are located in the `/configs/data_split` directory.
 If you have a configuration file located at `../configs/data_split/cross-species-config.yml`, run:
 
 ```bash
-python 02-split_data.py --config_file ../configs/data_split/cross-chromosome-config.yml
+python 02-split_data.py --config_file ../configs/data_split/cross-species-config.yml
 ```
 
 ### Output
@@ -162,6 +162,18 @@ A directory named `<config.input_dir without extension>` will be created inside 
 Inside this directory, a CSV file containing predictions will be saved, named after each model, corresponding to the models saved in the model directory.
 Additionally, a `prediction_result.csv` file will be generated, summarizing performance metrics for all models.
 
+Also, if `num_interpret_samples` is present in config file and > 0 for **HyenaDNA**, script will create a directory named after the chosen interpret method (`config.interpret_method`) inside `interpret`. 
+Inside you’ll find “attribution” files and corresponding visualizations for `num_interpret_samples` truly predicted-test data and wrongly predicted-test data for each model.
+
+Each plot answers the question: “Which parts of this input actually tipped the model toward its final prediction?”
+This way, we get a glimpse of which inputs the network was most sensitive to, rather than treating it as a black box.
+
+Here we have three interpret options:
+- **`vanilla`**: The classic gradient‐based saliency map. It takes the gradient of the output score for the predicted class with respect to each input feature (e.g. each token embedding). The magnitude of that gradient tells us how much a tiny change in that feature would change the score.
+- **`smoothgrad`** (default): A noise‑averaged version of saliency that yields clearer, less noisy attributions. It adds small random noise to the input multiple times and computes a saliency map for each noisy sample, and averages all those maps together.
+SmoothGrad filters out spurious spikes and highlights the features that consistently matter.
+- **`integrated`**: A path‑integral approach that measures how the model’s output changes as we move from a “neutral” baseline to the actual input. It picks a simple baseline input (all zeros in our case) and creates a series of intermediate inputs by interpolating between the baseline and the real input. Then, it computes gradients at each step and sum (integrate) them along that path.
+By accumulating gradient information over a continuous path, we get attributions that often more faithfully reflect the model’s decision than a single‑step gradient.
 #### mode = "genome"
 ```bash
 python 04-predict.py --config_file ../configs/genome_predict/HeynaDNA-config.yml --mode genome

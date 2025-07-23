@@ -1,10 +1,10 @@
-input_dir: ""
+input_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/samples/Sun2022-SiABFs_shuffle_neg_stride_200.csv"
 
 model:
   model_name: "DeepBind"
   kernel_length: 24
   max_length: 264
-  saved_model_dir: ""
+  saved_model_dir: "../outputs/ABFs_cross-species/test-Si/DeepBind/relaxed/models/freeze_layers_none_train_batch_size_64_learning_rate_0.0001_weight_decay_0.0001/"
 
 device: "cuda"
 eval_batch_size: 64

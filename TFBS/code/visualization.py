@@ -1,11 +1,14 @@
 import os
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+import colorsys
 import numpy as np
 from sklearn.metrics import roc_curve, auc, precision_recall_curve
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 import umap
 import torch
+from pathlib import Path
 
 # def plot_loss(param_combinations, train_loss_per_param, val_loss_per_param, plot_dir, plot_name):
 #     plt.figure(figsize=(8, 6))
@@ -187,3 +190,104 @@ def plot_peaks(predictions, output_dir, name):
     output_path = f"{output_dir}/peak-{name}.png"
     plt.savefig(output_path, dpi=300)
     plt.close()
+
+def adjust_lightness(color, amount: float = 1.5):
+    """
+    Adjust the lightness of a matplotlib color.
+
+    :param color: A matplotlib color string or RGB tuple.
+    :param amount: Factor by which to multiply the lightness component.
+                   >1 → lighter, 0<amount<1 → darker.
+    :return: New RGB tuple with adjusted lightness.
+    """
+    r, g, b = mcolors.to_rgb(color)
+    h, l, s = colorsys.rgb_to_hls(r, g, b)
+    l = max(0.0, min(1.0, l * amount))
+    return colorsys.hls_to_rgb(h, l, s)
+
+def plot_single_saliency(seq_scores, sequence, uid, label, peak_range, save_path, fig_size= (20, 3)):
+    """
+    Plot and save a saliency map for one sample.
+    """
+    start, end = peak_range
+    seq_len = seq_scores.shape[0]
+
+    base_color = 'darkgreen' if label == 1 else 'maroon'
+    light_color = adjust_lightness(base_color, amount=1.5)
+    boundary_color = adjust_lightness(base_color, amount=2.5)
+
+    bar_colors = [
+        light_color if start <= idx <= end else base_color
+        for idx in range(seq_len)
+    ]
+
+    fig, ax = plt.subplots(figsize=fig_size)
+    ax.bar(np.arange(seq_len), seq_scores, color=bar_colors, width=1.0)
+
+    # boundary lines around the peak
+    ax.axvline(start - 0.5, color=boundary_color, linestyle='--', linewidth=2)
+    ax.axvline(end + 0.5, color=boundary_color, linestyle='--', linewidth=2)
+
+    ax.set_title(
+        f"ID: {uid} | Peak: {start}-{end} | Label: {label} | SeqLen: {seq_len}",
+        fontsize=12
+    )
+    ax.set_xlabel("Position", fontsize=12)
+    ax.set_ylabel("Attribution Score", fontsize=12)
+
+    ax.set_xticks(np.arange(seq_len))
+    ax.set_xticklabels(list(sequence), fontsize=10)
+    for idx, tick in enumerate(ax.get_xticklabels()):
+        tick.set_fontweight('bold' if start <= idx <= end else 'normal')
+
+    ax.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
+
+    fig.savefig(save_path, dpi=300)
+    plt.close(fig)
+
+def plot_saliency_maps_from_file(logger, npz_file_path, output_dir):
+    """
+    Load data from an .npz and produce one saliency plot per sample.
+    """
+    npz_path = Path(npz_file_path)
+
+    if not npz_path.is_file():
+        logger.log_message(f"Error: File not found – {npz_path}")
+        return
+
+    try:
+        with np.load(npz_path, allow_pickle=True) as data:
+            attributions = data['attributions']
+            sequences = data['sequences']
+            labels = data['labels']
+            uids = data['uids']
+            peak_start_ends = data['peak_start_ends']
+            correct_labels = data['correct_labels']
+    except KeyError as e:
+        logger.log_message(f"Error: Missing expected array in NPZ – {e}")
+        return
+    except Exception as e:
+        logger.log_message(f"Error loading {npz_path}: {e}")
+        return
+
+    num_samples = len(attributions)
+    if num_samples == 0:
+        logger.log_message("No samples found in the file.")
+        return
+
+    logger.log_message(f"{num_samples} samples found; generating plots…")
+
+    # loop through each sample and plot
+    for attrs, seq, lbl, uid, peak, correct_label in zip(
+            attributions, sequences, labels, uids, peak_start_ends, correct_labels
+    ):
+        # sum the scores across 128 embedding channels to get one score per position
+        seq_scores = attrs.sum(axis=1)
+
+        out_dir = os.path.join(output_dir, f"Correctly_Predicted:{correct_label}")
+        os.makedirs(out_dir, exist_ok=True)
+        filename = os.path.join(out_dir, f"ID-{uid}.png")
+        plot_single_saliency(seq_scores, seq, uid, int(lbl), tuple(peak), filename)
+
+    logger.log_message(f"Successfully saved {num_samples} plots to {output_dir}")

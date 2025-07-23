@@ -1,9 +1,9 @@
-input_dir: ""
+input_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/samples/Sun2022-SiABFs_shuffle_neg_stride_200.csv"
 
 model:
   model_name: "DNABERT-2"
   max_length: 264
-  saved_model_dir: ""
+  saved_model_dir: "../outputs/ABFs_cross-species/test-Si/DNABERT-2/standard/relaxed/models/train_batch_size_32_learning_rate_1.5e-05_weight_decay_1e-2_freeze_layers_none_eval_batch_size_32/"
 
 device: "cuda"
 eval_batch_size: 32

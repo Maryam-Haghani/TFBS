@@ -26,7 +26,7 @@ def validate_saved_model_dir(config):
         raise ValueError(f'Given model name ({config.model_name})'
                          f'not found in saved_model_dir ({config.saved_model_dir})!')
 
-    if config.model_version:
+    if getattr(config, "model_version", None):
         #  model_version should be a directory in `saved_model_dir`
         if not config.model_version in p.parts:
             raise ValueError(f'Given model version ({config.model_version})'
@@ -69,6 +69,8 @@ def load_data(config, mode, logger):
 if __name__ == "__main__":
     args = parse_arguments()
     config = load_config(args.config_file)
+    config.num_saliency_samples = getattr(config, "num_saliency_samples", 0) # set to 0 if None
+    config.saliency_method = getattr(config, "saliency_method", 'smoothgrad') # set to 'smoothgrad' if None
 
     validate_saved_model_dir(config.model)
     model_files = get_models(config.model.saved_model_dir)
@@ -87,7 +89,7 @@ if __name__ == "__main__":
     model, tokenizer = init_model_and_tokenizer(logger, config.model, config.device)
     base_sd = model.state_dict()
 
-    tt = Train_Test(logger, config.device, config.eval_batch_size, test_mode=args.mode)
+    tt = Train_Test(logger, config.model.max_length, config.device, config.eval_batch_size, test_mode=args.mode)
 
     data = load_data(config, args.mode, logger)
     window_size = getattr(config, 'window_size', None)
@@ -105,7 +107,9 @@ if __name__ == "__main__":
         if args.mode == 'df':
             name, _ext = os.path.splitext(model_name)
             test_accuracy, test_auroc, test_auprc, test_f1, test_mcc, test_time \
-                = tt.predict(model, ds, output_dir, name)
+                = tt.predict(model, ds, output_dir, name,
+                             num_saliency_samples=config.num_saliency_samples,
+                             saliency_method=config.saliency_method)
 
             results.append({
                 'model_name': model_name,
