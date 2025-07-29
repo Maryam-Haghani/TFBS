@@ -6,6 +6,7 @@ model:
   use_padding: true
   max_length: 264
   finetune_type: "standard" # options: LoRA, standard
+  seeds: [0, 535646, 224359, 989746, 654678]
 
 device: "cuda"
 

@@ -82,12 +82,11 @@ def plot_roc_pr(type, true_labels, probs, x_name, y_name, plot_dir, name):
 
 # visualizes the embeddings from the different splits (train, val, test)
 # using PCA, T-SNE, and UMAP
-def visualize_embeddings(fold_split_embeddings, output_dir, fold_name):
+def visualize_embeddings(split_embeddings, output_dir, model_name):
     """
-    fold_split_embeddings : {train, train_embed, val: val_embed: test: test_embed}
+    split_embeddings : {train: train_embed, test: test_embed}
     each embed is a dict of keys: "sequences", "embeddings", "labels"
       train_embed embeddings of shape (N_train,  emb_size)
-      val_embed embeddings of shape (N_valid,  emb_size)
       test_embed embeddings of shape (N_test,   emb_size)
 
     do dimension reduction for each embedding based on 1."PCA" 2."T-SNE" 3."UMAP"
@@ -98,11 +97,10 @@ def visualize_embeddings(fold_split_embeddings, output_dir, fold_name):
     tsne = TSNE(n_components=2)
     umap_model = umap.UMAP(n_components=2)
 
-    # define different colors for train, validation, and test
+    # define different colors for train and test
     colors = {
-        'train': '#AEC6CF',  # Pastel Blue
-        'val': '#FFD1DC',  # Pastel Pink
-        'test': '#FFB347',  # Pastel Orange
+        'train': '#AEC6CF',  # pastel blue
+        'test': '#FFB347',  # pastel orange
     }
     # define different markers for labels 0 and 1
     markers = {0: 'o', 1: '^'}
@@ -112,7 +110,7 @@ def visualize_embeddings(fold_split_embeddings, output_dir, fold_name):
         plt.figure(figsize=(8, 6))
 
         # loop through each split
-        for split, embed_data in fold_split_embeddings.items():
+        for split, embed_data in split_embeddings.items():
             embeddings = embed_data['embeddings']
             labels = embed_data['labels']
 
@@ -144,7 +142,7 @@ def visualize_embeddings(fold_split_embeddings, output_dir, fold_name):
                     s=5
                 )
 
-        plt.title(f'{method} Embedding Visualization for {fold_name}')
+        plt.title(f'{method} Embedding Visualization for {model_name}')
         plt.xlabel('Component 1')
         plt.ylabel('Component 2')
 
@@ -161,7 +159,7 @@ def visualize_embeddings(fold_split_embeddings, output_dir, fold_name):
         # save the plot
         output_path = os.path.join(output_dir, method)
         os.makedirs(output_path, exist_ok=True)
-        output_path = f"{output_path}/{fold_name}-embedding.png"
+        output_path = os.path.join(output_path, f"{model_name}.png")
         plt.savefig(output_path, dpi=300)
         plt.close()
 
@@ -187,7 +185,7 @@ def plot_peaks(predictions, output_dir, name):
     plt.legend()
 
     # save the plot
-    output_path = f"{output_dir}/peak-{name}.png"
+    output_path = os.path.join(output_dir, f"peak-{name}.png")
     plt.savefig(output_path, dpi=300)
     plt.close()
 

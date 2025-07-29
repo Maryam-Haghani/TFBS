@@ -4,7 +4,6 @@ from logger import CustomLogger
 from utils import load_config
 from data_split import DataSplit
 
-# python 02-split_data.py --config_file [config_path]
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_file", type=str, required=True, help="Path to the config file.")

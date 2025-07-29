@@ -158,8 +158,8 @@ python 04-predict.py --config_file [config_path] --mode= [mode]
 python 04-predict.py --config_file ../configs/predict/HeynaDNA-config.yml --mode df
 ```
 ##### Output
-A directory named `<config.input_dir without extension>` will be created inside the `Predictions` folder, located within the saved model directory (`config.saved_model_dir`).
-Inside this directory, a CSV file containing predictions will be saved, named after each model, corresponding to the models saved in the model directory.
+A directory named `<config.input_dir without extension>` will be created inside the `predictions` folder, located within the parent directory of the saved model directory (`config.saved_model_dir`).
+Inside this directory, a CSV file containing predictions for each sequence will be saved, named after each model, corresponding to the models saved in the model directory.
 Additionally, a `prediction_result.csv` file will be generated, summarizing performance metrics for all models.
 
 Also, if `num_interpret_samples` is present in config file and > 0 for **HyenaDNA**, script will create a directory named after the chosen interpret method (`config.interpret_method`) inside `interpret`. 
@@ -187,8 +187,9 @@ Because it sums gradient contributions over the entire trajectory, the resulting
 python 04-predict.py --config_file ../configs/genome_predict/HeynaDNA-config.yml --mode genome
 ```
 ##### Output
-A directory named `<config.input_dir without extension>` will be created inside the `Predictions` folder within the saved model directory (`config.saved_model_dir`).
+A directory named `<config.input_dir without extension>` will be created inside the `predictions` folder within the parent directory of saved model directory (`config.saved_model_dir`).
 In this directory, a plot will be saved for each model, with the filename following the template: `peak-[model_name]-window_size_[config.window_size]-stride_[config.stride].png`.
+Additionally, a `prediction_result.csv` file will be generated, summarizing prediction scores for each model for each sequence part.
 
 ## 5. Embedding Generation and Visualization
 This script extracts embeddings from a pre-trained or saved model for a data split, and visualizes them using PCA, T-SNE, or UMAP.
@@ -214,7 +215,7 @@ python 05-get_embedding.py --embed_config_file ../configs/embedding/HeynaDNA-con
 ```
 
 ### Output
-Embeddings are saved in `.pt` files, and visualizations are generated in `plots` subdirectory.
+Embeddings are saved in `.pt` files, and visualizations are generated in `plots` subdirectory in `embeddings` directory.
 
 ## Requirements
 

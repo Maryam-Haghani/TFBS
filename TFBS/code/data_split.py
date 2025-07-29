@@ -42,6 +42,9 @@ class DataSplit:
         else:  # self.config.test_split_type == "cross"
             df_test, df_train_val = self._split_dataset_by_id(df, 'test', self.config.test_ids)
 
+        # save whole train data
+        df_train_val.to_csv(os.path.join(split_path, "whole_train_dataset.csv"), index=False)
+
         # now create train and val splits
         if self.config.val_split_type == "cross":
             df_val, df_train = self._split_dataset_by_id(df_train_val, 'val', self.config.val_ids)
@@ -80,6 +83,7 @@ class DataSplit:
 
         self.logger.log_message(f"Loading '{self.config.test_split_type}' test split from {split_path}")
         df_test = pd.read_csv(os.path.join(split_path, 'test_dataset.csv'))
+        df_train_val = pd.read_csv(os.path.join(split_path, "whole_train_dataset.csv"))
 
         self.logger.log_message(
             f"Loading '{self.config.val_split_type}' train-val splits from {val_split_path}")
@@ -105,7 +109,7 @@ class DataSplit:
             dfs_train = {1: pd.read_csv(os.path.join(val_split_path, 'train_dataset.csv'))}
             dfs_val = {1: pd.read_csv(os.path.join(val_split_path, 'val_dataset.csv'))}
 
-        return dfs_train, dfs_val, df_test
+        return dfs_train, dfs_val, df_train_val, df_test
 
     def _read_dataset(self, dataset_paths):
         dfs = []

@@ -79,7 +79,9 @@ class Train_Test:
 
         return avg_train_loss
 
-    def train(self, ds_train, ds_val, model_name, model_dir, wandb):
+    def train(self, ds_train, model_name, wandb, ds_val=None, model_dir = None):
+        has_validation = ds_val is not None
+
         self._freeze_layers()
 
         self.logger.log_message(f'model name: {model_name}')
@@ -92,10 +94,7 @@ class Train_Test:
         trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         self.logger.log_message(f"Trainable parameters: {trainable_params}")
 
-
         self.logger.log_message(f"Training...")
-        train_loader = DataLoader(ds_train, batch_size=self.training.model_params.train_batch_size, shuffle=True)
-        val_loader = DataLoader(ds_val, batch_size=self.eval_batch_size, shuffle=False)
 
         loss_fn = nn.CrossEntropyLoss()
 
@@ -107,26 +106,31 @@ class Train_Test:
 
         self.model.to(self.device)
 
-        early_stopping = EarlyStopping(
-            logger = self.logger,
-            patience=self.training.early_stopping.patience,
-            verbose=True,
-            delta=self.training.early_stopping.delta
-        )
+        train_loader = DataLoader(ds_train, batch_size=self.training.model_params.train_batch_size, shuffle=True)
+        if has_validation:
+            val_loader = DataLoader(ds_val, batch_size=self.eval_batch_size, shuffle=False)
+            early_stopping = EarlyStopping(
+                logger = self.logger,
+                patience=self.training.early_stopping.patience,
+                verbose=True,
+                delta=self.training.early_stopping.delta
+            )
 
         start_time = time.time()  # START TRAINING TIME
-
         # training
+        val_metrics = {}
         for epoch in range(self.training.num_epochs):
             self.logger.log_message(f'Epoch {epoch+1}/{self.training.num_epochs}')
 
             train_loss = self._train(train_loader, optimizer, epoch, loss_fn)
-            val_acc, val_auroc, val_auprc, val_f1, val_mcc, val_loss = self._test(
-                val_loader, model_name, loss_fn=loss_fn
-            )
+            if has_validation:
+                val_acc, val_auroc, val_auprc, val_f1, val_mcc, val_loss = self._test(
+                    val_loader, model_name, loss_fn=loss_fn
+                )
+                val_metrics[epoch] = (round(val_acc, 3), round(val_auroc, 3), round(val_auprc, 3),
+                                      round(val_f1, 3), round(val_mcc, 3))
 
-            if wandb is not None:
-                wandb.log({
+                log_params = {
                     "epoch": epoch + 1,
                     "train loss": train_loss,
                     "val loss": val_loss,
@@ -135,34 +139,41 @@ class Train_Test:
                     "val AUPRC": val_auprc,
                     "val F1": val_f1,
                     "val MCC": val_mcc
-                })
+                }
+            else:
+                log_params = {
+                    "epoch": epoch + 1,
+                    "train loss": train_loss,
+                }
+
+            if wandb is not None:
+                wandb.log(log_params)
             else:
                 self.logger.log_message("wandb is not enabled. Skipping logging.")
 
             # check early stopping criteria
-            early_stopping(val_loss, self.model, epoch)
-            if early_stopping.early_stop:
-                self.logger.log_message(f"Early stopping triggered. Stopping training at epoch {epoch+1}.")
-                break
+            if has_validation:
+                early_stopping(val_loss, self.model, epoch)
+                if early_stopping.early_stop:
+                    best_epoch = early_stopping.best_epoch
+                    best_val_acc, best_val_auroc, best_val_auprc, best_val_f1, best_val_mcc = val_metrics[
+                        best_epoch]
+                    self.logger.log_message(f"Early stopping triggered. Stopping training at epoch {epoch+1}.\nbest epoch: {best_epoch+1}")
+                    self.logger.log_message(f"Metrics for best epoch: best_val_acc: {best_val_acc}, best_val_auroc: {best_val_auroc},"
+                                            f" best_val_auprc: {best_val_auprc}, best_val_f1: {best_val_f1}, best_val_mcc: {best_val_mcc}")
+                    break
 
         training_time = time.time() - start_time  # END TRAINING TIME
 
-        if early_stopping.early_stop:
-            best_epoch = early_stopping.best_epoch
-        else:
-            best_epoch = self.training.num_epochs -1
-
-        # reload the best model weights saved during training
-        if early_stopping.best_model_state is not None:
-            self.model.load_state_dict(early_stopping.best_model_state)
-            self.logger.log_message(f"Loaded best model weights from epoch {best_epoch+1}.") # converting 0-indexed to 1-indexed
-
+        if not has_validation: # training whole data
             # save the model
             model_path = os.path.join(model_dir, f'{model_name}.pt')
             torch.save(self.model.state_dict(), model_path)
-            self.logger.log_message(f"Best model saved as: {model_path}")
+            self.logger.log_message(f"Model saved as: {model_path}")
 
-        return f'{trainable_params} / {total_params}', best_epoch+1, val_acc, val_auroc, val_auprc, val_f1, val_mcc, training_time
+            return f'{trainable_params} / {total_params}', training_time
+
+        return f'{trainable_params} / {total_params}', best_epoch+1, best_val_acc, best_val_auroc, best_val_auprc, best_val_f1, best_val_mcc, training_time
 
     def _init_interpret(self, num_saliency_samples, method):
         self.interp_state = {
@@ -446,9 +457,21 @@ class Train_Test:
             self.logger.log_message(f'\nValidation loss: {avg_test_loss:.4f}\n')
             return accuracy, auroc, auprc, f1, mcc, avg_test_loss
 
+    def predict(self, model, ds, test_result_dir=None, model_name=None, num_saliency_samples=10, saliency_method='smooth'):
+        self.model = model
+        self.model.to(self.device)
+
+        if self.test_mode=='df':
+            return self._predict_df(ds, model_name, test_result_dir, num_saliency_samples=num_saliency_samples,
+                             saliency_method=saliency_method)
+        elif self.test_mode=='genome':
+            return self._predict_genome(ds)
+        else:
+            raise ValueError(f'Given mode {self.test_mode} is not valid!')
+
 
     # compute metrics for test dataset
-    def test(self, ds_test, model_name, test_result_dir, num_saliency_samples=0, saliency_method='smooth'):
+    def _predict_df(self, ds_test, model_name, test_result_dir, num_saliency_samples=0, saliency_method='smooth'):
         test_loader = DataLoader(ds_test, batch_size=self.eval_batch_size, shuffle=num_saliency_samples==0)
 
         start_time = time.time()  # START TEST TIME
@@ -457,19 +480,7 @@ class Train_Test:
         test_time = time.time() - start_time  # END TEST TIME
         return acc, auroc, auprc, f1, mcc, test_time
 
-    def predict(self, model, ds, test_result_dir=None, model_name=None, num_saliency_samples=10, saliency_method='smooth'):
-        self.model = model
-        self.model.to(self.device)
-
-        if self.test_mode=='df':
-            return self.test(ds, model_name, test_result_dir, num_saliency_samples=num_saliency_samples,
-                             saliency_method=saliency_method)
-        elif self.test_mode=='genome':
-            return self._predict(ds)
-        else:
-            raise ValueError(f'Given mode {self.test_mode} is not valid!')
-
-    def _predict(self, ds):
+    def _predict_genome(self, ds):
         dataloader = DataLoader(ds, batch_size=self.eval_batch_size, shuffle=False)
         self.model.eval()
         predictions = []

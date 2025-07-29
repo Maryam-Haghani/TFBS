@@ -6,8 +6,6 @@ from Bio import SeqIO
 from collections import Counter
 from logger import CustomLogger
 
-# python 01-generate_samples.py --fasta_file path/to/your.fasta --peak_file path/to/peaks.csv --output_file path/to/output.csv --neg_type shuffle -- species SI/ATA
-
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Generate positive and negative samples for TF binding.")
     parser.add_argument("--fasta_file", type=str, required=True, help="Path to the input FASTA file.")

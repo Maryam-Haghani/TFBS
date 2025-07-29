@@ -10,8 +10,6 @@ from train_test import Train_Test
 from visualization import plot_peaks
 from Bio import SeqIO
 
-
-# python 04-predict.py --config_file [config_path] --mode= [mode]
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_file", type=str, required=True, help="Path to the config file.")
@@ -76,7 +74,9 @@ if __name__ == "__main__":
     model_files = get_models(config.model.saved_model_dir)
 
     input_name = Path(config.input_dir).stem
-    output_dir = os.path.join(config.model.saved_model_dir, 'Predictions', input_name)
+
+    parent_model_dir = os.sep.join(config.model.saved_model_dir.split(os.sep)[:-1])
+    output_dir = os.path.join(parent_model_dir, 'predictions', input_name)
     os.makedirs(output_dir, exist_ok=True)
 
     logger = setup_logger(output_dir)
@@ -97,15 +97,15 @@ if __name__ == "__main__":
     ds = get_ds(config.model, tokenizer, data, mode=args.mode, window_size=window_size, stride=stride)
     logger.log_message(f"len of ds: {len(ds)}")
 
-    # get predictions for all folds######
+    # get predictions for all models######
     results = []
     for model_name in model_files:
         logger.log_message(f'******************************** {model_name} ******************************** ')
         load_current_model(config, model, base_sd, model_name)
 
         logger.log_message(f'Getting prediction based on {model_name} for {input_name}')
+        name, _ext = os.path.splitext(model_name)
         if args.mode == 'df':
-            name, _ext = os.path.splitext(model_name)
             test_accuracy, test_auroc, test_auprc, test_f1, test_mcc, test_time \
                 = tt.predict(model, ds, output_dir, name,
                              num_saliency_samples=config.num_saliency_samples,
