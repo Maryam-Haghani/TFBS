@@ -1,0 +1,8 @@
+output_dir: "../outputs"
+
+model:
+  model_name: "motif-based"
+nmotifs: 5
+qval_thresholds: [0.05, 1e-2, 1e-3, 1e-4, 1e-5]
+seeds: [0, 535646, 224359, 989746, 654678]
+

@@ -111,10 +111,12 @@ python 02-split_data.py --config_file ../configs/data_split/cross-species-config
 ### Output
 Data splits are stored in `<config.split_dir>/<config.name>`.
 
-
 ## 3. Training / Fine-tuning Models on a Split
 ### Description
-This script trains and evaluates machine learning models, with a grid search over hyperparameters like batch size, learning rate, and weight decay.
+A two‐stage pipeline that:
+1. **Phase 1:** Trains model on each training fold, evaluates validation set over several training parameters (such as batch size, learning rate, and weight decay), and picks the parameters with the highest average F1.
+2. **Phase 2:** Retrains the model on the full training set on the best hyperparameters for multiple random seeds, predicts for the held‑out test set, and logs key metrics (MCC, F1, accuracy, AUROC, AUPRC) for each seed.
+
 It integrates with [Weights & Biases (wandb)](https://wandb.ai) for experiment tracking and visualization.
 
 ### Usage
@@ -136,6 +138,8 @@ python 03-train.py --train_config_file ../configs/train/HeynaDNA-config.yml --sp
 ### Output
 Trained models and logs are saved in `<config.output_dir>/<split_config.name>/`
 
+`prediction_results.csv` will have prediction metrics for different seeds.
+
 ## 4. Prediction
 ### Description
 This script generates predictions from saved pre-trained models for a dataframe or a genome sequence.
@@ -148,7 +152,6 @@ python 04-predict.py --config_file [config_path] --mode= [mode]
 ```
 
 #### Arguments
-
 - `--config_file`: The path to the configuration YAML file.
 --mode: Specifies the data mode. Use "df" when the input data is in a dataframe format with `sequence` and `label` columns. Use "genome" when the input is a sequence, and the script predicts whether any fragment of the sequence, with a length defined by `config.window_size` and a stride defined by `config.stride`, is a binding site.
 
@@ -216,6 +219,33 @@ python 05-get_embedding.py --embed_config_file ../configs/embedding/HeynaDNA-con
 
 ### Output
 Embeddings are saved in `.pt` files, and visualizations are generated in `plots` subdirectory in `embeddings` directory.
+
+
+## 6. Motif-Based Prediction (Traditional Approach)
+This script generates predictions from traditional motif-based approach.
+
+A two‐stage [MEME](https://meme-suite.org/meme/doc/meme.html) + [FIMO](https://meme-suite.org/meme/doc/fimo.html) pipeline that:
+1. **Phase 1:** Runs MEME on each training fold, scans validation sequences with FIMO over several q‑value thresholds, and picks the threshold with the highest average F1.
+2. **Phase 2:** Retrains MEME on the full training set for multiple random seeds, applies FIMO with the chosen q‑value to the held‑out test set, and logs key metrics (MCC, F1, accuracy, AUROC, AUPRC) for each seed.
+
+### Usage
+To run the script, use the following command:
+
+```bash
+python 06-predict_motif.py --split_config_file [split_config_path] --morif_config_file [motif_config_path]
+```
+
+#### Arguments
+- `--split_config_file`: The path to the data split configuration YAML file.
+- `--motif_config_file`: The path to the motif configuration YAML file.
+
+#### Example
+```bash
+python 06-predict_motif.py --motif_config_file ../configs/motif-based.yml --split_config_file ../configs/data_split/cross-species-config.yml
+```
+
+### Output
+`prediction_results.csv` will have prediction metrics for different seeds.
 
 ## Requirements
 
