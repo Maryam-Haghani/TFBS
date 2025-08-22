@@ -24,18 +24,13 @@ To get started, follow these steps:
    cd TFBS
    ```
 
-2. **Create a conda environment**  
+2. **Create conda environment**  
    ```bash
-   conda create -n tfbs-env python=3.9
-   conda activate tfbs-env
-   ```
-
-3. **Install dependencies**  
-   ```bash
-   pip install -r requirements.txt
+   conda env create -f environment.yml
+   conda activate tfbs
    ```
    
-4. **Navigate to the code directory**:
+3. **Navigate to the code directory**:
    ```bash
    cd ./TFBS/code
    ```
