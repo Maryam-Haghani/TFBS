@@ -66,10 +66,12 @@ python 01-generate_samples.py --fasta_file path/to/your.fasta --peak_file path/t
 ```bash
 python 01-generate_samples.py --fasta_file ../inputs/fastas/Arabidopsis_thaliana.TAIR10.dna_sm.toplevel.fa --peak_file ../inputs/peak_files/Sun2022-AtABFs_DAP-Seq_peaks.csv --species "At" --dataset Sun2022  --output_file ../inputs/samples/Sun2022-AtABFs_shuffle_neg_stride_200.csv
 ```
+To run this command, you should download the FASTA file for the *A. thaliana* genome and place it in the `./TFBS/inputs/fastas` directory.
 ##### For *S. irio* (ABF1-4) dataset:
 ```bash
 python 01-generate_samples.py --fasta_file ../inputs/fastas/Si_sequence --peak_file ../inputs/peak_files/Sun2022-SiABFs_DAP-Seq_peaks.csv --species "Si" --dataset Sun2022  --output_file ../inputs/samples/Sun2022-SiABFs_shuffle_neg_stride_200.csv  
 ```
+To run this command, you should download the FASTA file for the *S. irio* genome and place it in the `./TFBS/inputs/fastas` directory.
 ### Output
 This will generate positive and negative samples based on the given negative type generation, for the given species using the provided FASTA file and peak data, saving the results to `--output_file`.
 
