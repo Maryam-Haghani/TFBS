@@ -7,7 +7,7 @@ from logger import CustomLogger
 from utils import load_config, get_models
 from model_utils import init_model_and_tokenizer, get_ds, set_device, load_model
 from train_test import Train_Test
-from visualization import plot_peaks
+from visualization import plot_promoter_position_probability
 from Bio import SeqIO
 
 def parse_arguments():
@@ -56,13 +56,25 @@ def load_data(config, mode, logger):
     """Load data based on the specified mode."""
     if mode == 'df':
         data = pd.read_csv(config.input_dir)
+        return data, None
     elif mode == 'genome':
         record = next(SeqIO.parse(config.input_dir, 'fasta'))
+        header = record.description
         data = str(record.seq)
         logger.log_message(f"Loading genome with {len(data)} BPs")
-
         config.model.max_length = config.window_size
-    return data
+        start , end = header.split(":")[-1].split("-")
+        return data, int(start)
+
+
+def get_output_dir(config):
+    input_name = Path(config.input_dir).stem
+    parent_model_dir = os.sep.join(config.model.saved_model_dir.split(os.sep)[:-1])
+    output_dir = os.path.join(parent_model_dir, 'predictions', input_name)
+    if args.mode == 'genome':
+        output_dir = os.path.join(output_dir, f"WindowSize_{config.window_size}-Stride_{config.stride}")
+    os.makedirs(output_dir, exist_ok=True)
+    return output_dir
 
 if __name__ == "__main__":
     args = parse_arguments()
@@ -73,11 +85,7 @@ if __name__ == "__main__":
     validate_saved_model_dir(config.model)
     model_files = get_models(config.model.saved_model_dir)
 
-    input_name = Path(config.input_dir).stem
-
-    parent_model_dir = os.sep.join(config.model.saved_model_dir.split(os.sep)[:-1])
-    output_dir = os.path.join(parent_model_dir, 'predictions', input_name)
-    os.makedirs(output_dir, exist_ok=True)
+    output_dir = get_output_dir(config)
 
     logger = setup_logger(output_dir)
     logger.log_message(f"Configuration loaded: {config} - mode: {args.mode}")
@@ -91,7 +99,7 @@ if __name__ == "__main__":
 
     tt = Train_Test(logger, config.model.max_length, config.device, config.eval_batch_size, test_mode=args.mode)
 
-    data = load_data(config, args.mode, logger)
+    data, abs_start = load_data(config, args.mode, logger)
     window_size = getattr(config, 'window_size', None)
     stride = getattr(config, 'stride', None)
     ds = get_ds(config.model, tokenizer, data, mode=args.mode, window_size=window_size, stride=stride)
@@ -103,7 +111,7 @@ if __name__ == "__main__":
         logger.log_message(f'******************************** {model_name} ******************************** ')
         load_current_model(config, model, base_sd, model_name)
 
-        logger.log_message(f'Getting prediction based on {model_name} for {input_name}')
+        logger.log_message(f'Getting prediction based on {model_name}')
         name, _ext = os.path.splitext(model_name)
         if args.mode == 'df':
             test_accuracy, test_auroc, test_auprc, test_f1, test_mcc, test_time \
@@ -124,17 +132,23 @@ if __name__ == "__main__":
         elif args.mode == 'genome':
             predictions = tt.predict(model, ds)
             for start, end, probability in predictions:
-                results.append([name, start, end, probability])
+                results.append([name, start, end, abs_start+start, abs_start+end, probability])
 
             logger.log_message(f"Visualize genome prediction for {model_name}")
-            name = f"model_{model_name}-window size_{config.window_size}-stride_{config.stride}"
-            plot_peaks(predictions, output_dir, name)
+            name = f"model_{model_name}"
 
+            seq_length = len(data)
+            plot_promoter_position_probability(predictions, seq_length, abs_start, output_dir, name, strand="-", smooth="gaussian")
+            plot_promoter_position_probability(predictions, seq_length, abs_start, output_dir, name, strand="-", smooth="gaussian", agg="median")
+            plot_promoter_position_probability(predictions, seq_length, abs_start, output_dir, name, strand="-", smooth="spline")
+            plot_promoter_position_probability(predictions, seq_length, abs_start, output_dir, name, strand="-", smooth="spline", agg="median")
+            plot_promoter_position_probability(predictions, seq_length, abs_start, output_dir, name, strand="-", smooth="moving")
+            plot_promoter_position_probability(predictions, seq_length, abs_start, output_dir, name, strand="-", smooth="moving", agg="median")
     # save results to csv
     df_results = pd.DataFrame(results)
     if args.mode == 'genome':
-        df_results = pd.DataFrame(results, columns=['name', 'start', 'end', 'probability'])
+        df_results = pd.DataFrame(results, columns=['name', 'relative_start', 'relative_end', 'absolute_start', 'absolute_end', 'probability'])
 
-    results_csv_file = os.path.join(output_dir, 'prediction_results.csv')
+    results_csv_file = os.path.join(output_dir, "prediction_results.csv")
     df_results.to_csv(results_csv_file, index=False)
     logger.log_message(f"Results saved to {results_csv_file}", use_time=True)

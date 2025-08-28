@@ -17,7 +17,7 @@ from sklearn.metrics import (
 from captum.attr import Saliency, NoiseTunnel, IntegratedGradients, DeepLift
 
 from early_stop import EarlyStopping
-from visualization import plot_roc_pr, plot_saliency_maps_from_file
+from visualization import plot_roc_pr, plot_group_saliency_maps_per_class
 from utils import adjust_learning_rate
 
 class Train_Test:
@@ -245,7 +245,7 @@ class Train_Test:
         # package results
         attributions_info = [
             (int(idx), sequences[idx], uids[idx], (starts[idx], ends[idx]),
-             int(true_labels[idx]), attributions[j].cpu().detach())
+             int(true_labels[idx]), pred_labels[idx], attributions[j].cpu().detach())
             for j, idx in enumerate(chosen)
         ]
         return attributions_info
@@ -256,10 +256,20 @@ class Train_Test:
               (batch_idx, seq, uid, (start,end), true_label, attribution_tensor)
             or None if no correct samples in this batch.
         """
+
+        # ignore negative sampl,es
+        # if correct:
+        #     mask = pred_labels == true_labels.squeeze()
+        # else:
+        #     mask = pred_labels != true_labels.squeeze()
+
+        # focus on positive samples
         if correct:
-            mask = pred_labels == true_labels.squeeze()
+            # True positives: predicted 1 and actually 1
+            mask = (pred_labels == 1) & (true_labels.squeeze() == 1)
         else:
-            mask = pred_labels != true_labels.squeeze()
+            # False negatives: predicted 0 but actually 1
+            mask = (pred_labels == 0) & (true_labels.squeeze() == 1)
 
         attributions_info = self._get_attributions(mask, sequences, uids, starts, ends, pred_labels, true_labels, embeddings, correct)
         return attributions_info
@@ -283,21 +293,22 @@ class Train_Test:
 
     def _gather_interpretation(self, attributions_info, correct=True):
         """Store per‐example attribution"""
-        for idx, seq, uid, se, true_lab, attr in attributions_info:
+        for idx, seq, uid, se, true_lab, pred_label, attr in attributions_info:
             self.interp_state['records'].append({
                 'seq': seq,
-                'uid': uid,
+                'peak_uid': uid,
                 'start_end': se,
                 'label': true_lab,
                 'attr': attr.cpu().numpy()[self.max_length-len(seq):], # get attribute for sequence embeddings
                 'correct': correct
             })
+
             if correct:
                 self.interp_state['correct_found'] += 1
             else:
                 self.interp_state['incorrect_found'] += 1
 
-    def _save_interpretation_results(self, model_name, test_result_dir, saliency_method):
+    def _save_interpretation_results_and_visualize(self, model_name, test_result_dir, saliency_method):
         """Save all collected attributions to .npz and plot."""
         recs = self.interp_state['records']
         self.logger.log_message(
@@ -306,7 +317,7 @@ class Train_Test:
         # unpack arrays
         seqs = np.array([r['seq'] for r in recs], dtype=object)
         correct_labs = np.array([r['correct'] for r in recs], dtype=bool)
-        uids = np.array([r['uid'] for r in recs], dtype=object)
+        uids = np.array([r['peak_uid'] for r in recs], dtype=object)
         ses = np.array([r['start_end'] for r in recs], dtype=object)
         labs = np.array([r['label'] for r in recs], dtype=int)
         attrs = np.empty(len(recs), dtype=object)
@@ -331,7 +342,8 @@ class Train_Test:
         plot_dir = os.path.join(saliency_dir, 'plots', f'{model_name}')
         os.makedirs(plot_dir, exist_ok=True)
         self.logger.log_message(f'Visualizing Saliency maps into {plot_dir}...')
-        plot_saliency_maps_from_file(self.logger, npz_file_path=saliency_path, output_dir=plot_dir)
+        # plot_saliency_maps_from_file_per_sample(self.logger, npz_file_path=saliency_path, output_dir=plot_dir)
+        plot_group_saliency_maps_per_class(self.logger, npz_file_path=saliency_path, output_dir=plot_dir)
 
     def _save_prediction_results(self, results, test_result_dir, model_name, all_true_labels, all_pos_probs):
         test_result_path = os.path.join(test_result_dir, f'{model_name}.csv')
@@ -408,7 +420,7 @@ class Train_Test:
                 # collect results for each sample in the batch
                 for seq, uid, peak_start, peak_end, true_label, pred_label, prob\
                     in zip(sequences, uids, peak_starts, peak_ends, true_labels, pred_labels, probs):
-                    results.append({'uid': uid.item(),
+                    results.append({'peak_uid': uid.item(),
                                     'sequence': seq,
                                     'peak_start_end': (peak_start.item(), peak_end.item()),
                                     'true_label': true_label.item(),
@@ -448,7 +460,7 @@ class Train_Test:
             self._save_prediction_results(results, test_result_dir, model_name, all_true_labels, all_pos_probs)
 
             if do_interpret:
-                self._save_interpretation_results(model_name, test_result_dir, saliency_method)
+                self._save_interpretation_results_and_visualize(model_name, test_result_dir, saliency_method)
 
             return accuracy, auroc, auprc, f1, mcc
         else: # validating

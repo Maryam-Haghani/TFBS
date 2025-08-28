@@ -1,7 +1,8 @@
 import os
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-import colorsys
+from matplotlib.colors import Normalize
+from matplotlib.patches import Rectangle
+import math
 import numpy as np
 from sklearn.metrics import roc_curve, auc, precision_recall_curve
 from sklearn.decomposition import PCA
@@ -9,6 +10,12 @@ from sklearn.manifold import TSNE
 import umap
 import torch
 from pathlib import Path
+from collections import defaultdict
+
+# optional extras
+from scipy.ndimage import gaussian_filter1d
+from scipy.signal import savgol_filter
+from scipy.interpolate import UnivariateSpline
 
 # def plot_loss(param_combinations, train_loss_per_param, val_loss_per_param, plot_dir, plot_name):
 #     plt.figure(figsize=(8, 6))
@@ -163,105 +170,155 @@ def visualize_embeddings(split_embeddings, output_dir, model_name):
         plt.savefig(output_path, dpi=300)
         plt.close()
 
-def plot_peaks(predictions, output_dir, name):
-    plt.figure(figsize=(12, 6))
+def plot_promoter_position_probability(predictions, sequence_length, abs_start, output_dir, name,
+                         strand="+",
+                         agg="mean",                 # 'mean', 'max', or 'median'
+                         min_coverage=1,             # mask positions covered by < this many windows
+                         smooth="gaussian",          # None | 'moving' | 'gaussian' | 'savgol' | 'spline'
+                         smooth_param=51,            # window for moving/savgol; ~bandwidth for gaussian/spline
+                         savgol_poly=2):
+    """
+    predictions: list of (start, end, prob), 0- or 1-based — adjust ranges accordingly
+    sequence_length: int
+    smooth_param:
+        moving    -> window length (odd recommended)
+        gaussian  -> sigma in positions (e.g., ~ window_size/2)
+        savgol    -> window length (must be odd)
+        spline    -> smoothing factor 's' (bigger => smoother)
+    """
 
-    # plot each sliding window
+    # 1) collect probabilities per position
+    probs_by_pos = defaultdict(list)
+
     for start, end, prob in predictions:
-        plt.plot([start, end], [prob, prob], color='blue', linewidth=1)  # Line with constant probability
+        s = max(0, int(start))
+        e = min(sequence_length - 1, int(end))
+        if e >= s:
+            for pos in range(s, e + 1):
+                probs_by_pos[pos].append(prob)
 
-    # plot smooth line based on start positions
-    start_positions, end_positions, probabilities = zip(*predictions)
-    plt.plot(start_positions, probabilities, color='gray', linewidth=1,
-             linestyle='dashed', label='Smooth Probability Curve based on start positions')
+    # 2) aggregate
+    agg_probs = np.full(sequence_length, np.nan, dtype=float)
+    counts = np.zeros(sequence_length, dtype=int)
 
-    # Pplot the horizontal line Y = 0.5
-    plt.axhline(y=0.5, color='red', linestyle='--', label='Random Predictor')
+    for pos, plist in probs_by_pos.items():
+        counts[pos] = len(plist)
+        if counts[pos] < min_coverage:
+            continue
+        if agg == "mean":
+            agg_probs[pos] = np.mean(plist)
+        elif agg == "max":
+            agg_probs[pos] = np.max(plist)
+        elif agg == "median":
+            agg_probs[pos] = np.median(plist)
+        else:
+            raise ValueError(f"Unknown agg='{agg}', must be mean|max|median")
 
-    plt.title(f'TF Binding Probability Across Sequence for {name}')
-    plt.xlabel('Sequence Position')
+    # 3) smoothing
+    x = np.arange(sequence_length)
+    y = agg_probs.copy()
+    y_smooth = y.copy()
+    if smooth and np.nanmax(counts) > 0:
+        # interpolate small gaps so filters work (don’t invent at long uncovered stretches)
+        # linear interp over NaNs
+        mask = ~np.isnan(y)
+        if mask.sum() >= 2:
+            y_interp = np.interp(x, x[mask], y[mask])
+        else:
+            y_interp = y.copy()
+
+        if smooth == 'moving':
+            w = max(3, int(smooth_param) // 2 * 2 + 1)  # force odd
+            kernel = np.ones(w) / w
+            y_s = np.convolve(y_interp, kernel, mode='same')
+
+        elif smooth == 'gaussian':
+            sigma = float(smooth_param)
+            y_s = gaussian_filter1d(y_interp, sigma=sigma, mode='nearest')
+
+        elif smooth == 'savgol':
+            w = max(5, int(smooth_param) // 2 * 2 + 1)  # odd and >= poly+2
+            y_s = savgol_filter(y_interp, window_length=w, polyorder=savgol_poly, mode='interp')
+
+        elif smooth == 'spline':
+            # s ≈ (sequence_length) / smooth_param is a handy heuristic, or just pass a fixed s
+            s = float(smooth_param)
+            spl = UnivariateSpline(x[mask], y[mask], s=s)
+            y_s = spl(x)
+
+        else:
+            y_s = y_interp
+
+        # keep masked areas as NaN so they don't draw
+        y_smooth = np.where(np.isnan(y), np.nan, y_s)
+
+    # 3) plot smoothed
+    plt.figure(figsize=(18, 6))
+    plt.plot(x, agg_probs, linewidth=1, alpha=0.5, label=f'{agg} probability')
+    plt.plot(x, y_smooth, linewidth=2, label=f'smoothed ({smooth})')
+    plt.axhline(0.5, linestyle='--', linewidth=1, label='Random Predictor')
+
+    # 4) plot actual probabilities
+    for start, end, prob in predictions:
+        s = max(0, int(start))
+        e = min(sequence_length - 1, int(end))
+        if e >= s:
+            plt.hlines(prob, s, e, colors="gray", alpha=0.3, linewidth=1)
+
+    plt.title(f'Positional Distribution of Predicted Probability for {name}')
+    plt.xlabel(f'Sequence Position ({abs_start}-{abs_start+sequence_length}:"{strand}")')
     plt.ylabel('Probability')
     plt.grid(True)
     plt.legend()
 
-    # save the plot
-    output_path = os.path.join(output_dir, f"peak-{name}.png")
-    plt.savefig(output_path, dpi=300)
+    # change x-axis display
+    import matplotlib.ticker as ticker
+    def make_rel_pos_formatter(strand):
+        if strand == "+":  # plus strand: -1000 .. +200
+            def formatter(val, pos):
+                rel = -1000 + int(val)  # index 0 = -1000, index 1200 = +200
+                return f"{rel:+d}"
+        else:  # minus strand: +200 .. -1000
+            def formatter(val, pos):
+                rel = 200 - int(val)  # index 0 = +200, index 1200 = -1000
+                return f"{rel:+d}"
+        return formatter
+
+    ax = plt.gca()
+    ax.xaxis.set_major_formatter(ticker.FuncFormatter(make_rel_pos_formatter(strand)))
+
+    output_dir = os.path.join(output_dir, agg)
+    output_dir = os.path.join(output_dir, f"smooth_{smooth}")
+    os.makedirs(output_dir, exist_ok=True)
+
+    out = os.path.join(output_dir, f"positional-dist-{name}.png")
+    plt.savefig(out, dpi=300)
     plt.close()
+    return out
 
-def adjust_lightness(color, amount: float = 1.5):
+def plot_group_saliency_maps_per_class(logger, npz_file_path, output_dir):
     """
-    Adjust the lightness of a matplotlib color.
+    Load data from an .npz and produce two saliency grid plots:
+      - one for samples predicted correctly
+      - one for samples predicted wrongly
 
-    :param color: A matplotlib color string or RGB tuple.
-    :param amount: Factor by which to multiply the lightness component.
-                   >1 → lighter, 0<amount<1 → darker.
-    :return: New RGB tuple with adjusted lightness.
-    """
-    r, g, b = mcolors.to_rgb(color)
-    h, l, s = colorsys.rgb_to_hls(r, g, b)
-    l = max(0.0, min(1.0, l * amount))
-    return colorsys.hls_to_rgb(h, l, s)
-
-def plot_single_saliency(seq_scores, sequence, uid, label, peak_range, save_path, fig_size= (20, 3)):
-    """
-    Plot and save a saliency map for one sample.
-    """
-    start, end = peak_range
-    seq_len = seq_scores.shape[0]
-
-    base_color = 'darkgreen' if label == 1 else 'maroon'
-    light_color = adjust_lightness(base_color, amount=1.5)
-    boundary_color = adjust_lightness(base_color, amount=2.5)
-
-    bar_colors = [
-        light_color if start <= idx <= end else base_color
-        for idx in range(seq_len)
-    ]
-
-    fig, ax = plt.subplots(figsize=fig_size)
-    ax.bar(np.arange(seq_len), seq_scores, color=bar_colors, width=1.0)
-
-    # boundary lines around the peak
-    ax.axvline(start - 0.5, color=boundary_color, linestyle='--', linewidth=2)
-    ax.axvline(end + 0.5, color=boundary_color, linestyle='--', linewidth=2)
-
-    ax.set_title(
-        f"ID: {uid} | Peak: {start}-{end} | Label: {label} | SeqLen: {seq_len}",
-        fontsize=12
-    )
-    ax.set_xlabel("Position", fontsize=12)
-    ax.set_ylabel("Attribution Score", fontsize=12)
-
-    ax.set_xticks(np.arange(seq_len))
-    ax.set_xticklabels(list(sequence), fontsize=10)
-    for idx, tick in enumerate(ax.get_xticklabels()):
-        tick.set_fontweight('bold' if start <= idx <= end else 'normal')
-
-    ax.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.tight_layout()
-
-    fig.savefig(save_path, dpi=300)
-    plt.close(fig)
-
-def plot_saliency_maps_from_file(logger, npz_file_path, output_dir):
-    """
-    Load data from an .npz and produce one saliency plot per sample.
+    Each row corresponds to a sample; x is sequence position; color = summed attribution.
+    The per-sample [start, end] interval is highlighted on its row.
+    The y-axis shows a friendly sequence name parsed from `uid`.
     """
     npz_path = Path(npz_file_path)
-
     if not npz_path.is_file():
         logger.log_message(f"Error: File not found – {npz_path}")
         return
 
     try:
         with np.load(npz_path, allow_pickle=True) as data:
-            attributions = data['attributions']
-            sequences = data['sequences']
-            labels = data['labels']
+            attributions = data['attributions']       # (L, C) per sample
+            sequences = data['sequences']             # unused here, but loaded for parity
+            labels = data['labels']                   # not used for grouping in this function
             uids = data['uids']
-            peak_start_ends = data['peak_start_ends']
-            correct_labels = data['correct_labels']
+            peak_start_ends = data['peak_start_ends'] # (start, end) per sample
+            correct_labels = data['correct_labels']   # bool/int per sample: 1=correct, 0=wrong
     except KeyError as e:
         logger.log_message(f"Error: Missing expected array in NPZ – {e}")
         return
@@ -274,18 +331,275 @@ def plot_saliency_maps_from_file(logger, npz_file_path, output_dir):
         logger.log_message("No samples found in the file.")
         return
 
-    logger.log_message(f"{num_samples} samples found; generating plots…")
+    logger.log_message(f"{num_samples} samples found; assembling correctness grids…")
 
-    # loop through each sample and plot
-    for attrs, seq, lbl, uid, peak, correct_label in zip(
-            attributions, sequences, labels, uids, peak_start_ends, correct_labels
-    ):
-        # sum the scores across 128 embedding channels to get one score per position
+    # Precompute 1D saliency (sum over channels) and lengths
+    seq_scores_list = []
+    lengths = []
+    for attrs in attributions:  # attrs shape (L, C)
         seq_scores = attrs.sum(axis=1)
+        seq_scores_list.append(seq_scores)
+        lengths.append(len(seq_scores))
 
-        out_dir = os.path.join(output_dir, f"Correctly_Predicted:{correct_label}")
-        os.makedirs(out_dir, exist_ok=True)
-        filename = os.path.join(out_dir, f"ID-{uid}.png")
-        plot_single_saliency(seq_scores, seq, uid, int(lbl), tuple(peak), filename)
+    lengths = np.array(lengths)
+    max_len = int(lengths.max())
 
-    logger.log_message(f"Successfully saved {num_samples} plots to {output_dir}")
+    # Indices grouped by correctness
+    idx_correct = [i for i, c in enumerate(correct_labels) if bool(c)]
+    idx_wrong   = [i for i, c in enumerate(correct_labels) if not bool(c)]
+
+    def build_matrix(indices, desired_center_col=None):
+        """
+        indices: list of sample indices to include in this grid.
+
+        Returns:
+            M: (n, W) masked array of scores (NaN-masked where padded)
+            row_names: list of y-axis labels (parsed from uid)
+            row_spans: list of (start, end) in row order, shifted to grid coords
+            row_lengths: list of lengths in row order
+        """
+
+        def peak_stats(seq_scores, start, end, mode="abs"):
+            """Compute relative contribution of the peak vs rest for one sequence."""
+            L = len(seq_scores)
+            start = max(0, min(int(start), L - 1))
+            end = max(0, min(int(end), L - 1))
+            if end < start:
+                start, end = end, start
+
+            if mode == "pos":
+                s_use = np.clip(seq_scores, 0, None)
+            elif mode == "abs":
+                s_use = np.abs(seq_scores)
+            elif mode == "raw":
+                s_use = seq_scores
+            else:
+                raise ValueError("mode must be 'pos', 'abs', or 'raw'")
+
+            peak = s_use[start:end + 1]
+            mask = np.ones(L, dtype=bool);
+            mask[start:end + 1] = False
+            off = s_use[mask]
+
+            eps = 1e-12
+            peak_sum = peak.sum()
+            off_sum = off.sum() if off.size else 0.0
+            total = peak_sum + off_sum + eps
+
+            peak_mean = peak.mean()
+            off_mean = off.mean() if off.size else 0.0
+            peak_fraction = peak_sum / total  # length-sensitive
+            fold_change = (peak_mean + eps) / (off_mean + eps)  # mean_ratio, length-invariant
+            log2fc = np.log2(fold_change) if off.size else np.inf  # around 0 → easy to see “no change.”
+
+            length_share = len(peak) / L
+            concentration = (peak_fraction + eps) / (length_share + eps)  # length-normalized focus
+
+            return peak_mean, log2fc, concentration
+
+        if len(indices) == 0:
+            return None, [], [], []
+
+        def _name_from_uid(uid):
+            """
+            Best-effort extractor for a human-friendly sequence name from `uid`.
+            - If uid is a dict, try common fields.
+            - If uid looks like a path, use basename (without extension).
+            - Else, try splitting on common separators and take the first chunk.
+            - Fallback: str(uid)
+            """
+            try:
+                # dict-like
+                if isinstance(uid, dict):
+                    for k in ("name", "sequence_name", "seq_name", "uid", "id"):
+                        if k in uid and uid[k]:
+                            return str(uid[k])
+                    return str(uid)
+
+                s = str(uid.detach().cpu().numpy().astype(str).item())
+
+                # path-like
+                if any(sep in s for sep in ("/", "\\")):
+                    base = os.path.basename(s)
+                    if "." in base:
+                        base = ".".join(base.split(".")[:-1]) or base
+                    return base
+
+                # split on common separators
+                for sep in ("||", " | ", "|", "::", ":", ";", ","):
+                    if sep in s:
+                        return s.split(sep)[0]
+
+                # if there's whitespace, take the first token
+                if " " in s:
+                    return s.split()[0]
+
+                return s
+            except Exception:
+                return str(uid)
+
+        row_names, row_spans, row_lengths = [], [], []
+        rows = []  # store (seq_scores, L, start, end, name)
+        for i in indices:
+            s = seq_scores_list[i]  # shape (L,)
+            L = len(s)
+            start, end = map(int, peak_start_ends[i])
+            c = 0.5 * (start + end)  # center of the peak
+
+            peak_mean, log2fc, concentration = peak_stats(s, start, end)
+            label = f"{_name_from_uid(uids[i])} [log2fc={log2fc:.2f}, Cons={concentration:.2f}]"
+
+            rows.append((log2fc, peak_mean, s, L, start, end, label, c))
+
+        # sort rows by log2fc (descending)
+        rows.sort(key=lambda tup: tup[0], reverse=True)
+
+        centers = [tup[-1] for tup in rows]
+        n = len(rows)
+        # If the user didn't pick a column, target the center of the figure.
+        # We'll first compute offsets, then derive total width and the exact center column.
+        # Start with preliminary desired_center_col if provided; otherwise we’ll set later.
+        if desired_center_col is None:
+            # We’ll set this after computing the final width so the column is truly centered.
+            target_col = None
+        else:
+            target_col = int(desired_center_col)
+
+        # Initial integer offsets to place each row so that center -> target_col.
+        # If target_col is None, we still compute relative offsets (we’ll shift them later).
+        rough_offsets = []
+        for c in centers:
+            off = 0 if target_col is None else int(round(target_col - c))
+            rough_offsets.append(off)
+
+        # Ensure all offsets are non-negative by applying a global shift if needed
+        min_off = min(rough_offsets) if rough_offsets else 0
+        global_shift = -min_off if min_off < 0 else 0
+        offsets = [off + global_shift for off in rough_offsets]
+
+        # Compute width needed so no row overflows on the right
+        widths_needed = [off + L for off, (_, _, _,  L, _, _, _, _) in zip(offsets, rows)]
+        W = max(widths_needed) if widths_needed else 0
+
+        # If target_col was not set, choose the true middle column of the final width
+        if target_col is None:
+            target_col = W // 2
+            # Recompute offsets to align centers to this target_col, then re-fit W
+            offsets = [int(round(target_col - c)) for c in centers]
+            min_off = min(offsets)
+            global_shift = -min_off if min_off < 0 else 0
+            offsets = [off + global_shift for off in offsets]
+            widths_needed = [off + L for off, (_, _, _,  L, _, _, _, _) in zip(offsets, rows)]
+            W = max(widths_needed)
+
+        # Build matrix and shifted spans
+        M = np.full((n, W), np.nan, dtype=float)
+        shifted_spans, out_names, out_lengths = [], [], []
+
+        for r, (off, (_, _, s, L, start, end, name, _)) in enumerate(zip(offsets, rows)):
+            # Place the row starting at offset
+            M[r, off:off + L] = s
+            # Shift the span by the same offset
+            shifted_spans.append((start + off, end + off))
+            out_names.append(name)
+            out_lengths.append(L)
+
+        M = np.ma.masked_invalid(M)
+        return M, out_names, shifted_spans, out_lengths
+
+    def plot_grid(M, row_names, row_spans, row_lengths, title, out_path):
+        if M is None or M.shape[0] == 0:
+            logger.log_message(f"No samples for {title}; skipping.")
+            return
+
+        # Color scale (per figure)
+        vmin = float(M.min()) if np.isfinite(M.min()) else 0.0
+        # vmax = float(M.max()) if np.isfinite(M.max()) else 1.0
+        vmax = 100
+        if math.isclose(vmin, vmax):
+            vmin, vmax = vmin - 1e-6, vmax + 1e-6
+
+        # Figure sizing
+        fig_h = max(2.5, min(0.35 * M.shape[0] + 1.2, 20.0))
+        fig_w = max(8.0, min(12.0, 0.02 * M.shape[1] + 6.0))
+
+        fig, ax = plt.subplots(figsize=(fig_w, fig_h), constrained_layout=True)
+        im = ax.imshow(
+            M,
+            aspect='auto',
+            interpolation='nearest',
+            origin='upper',
+            norm=Normalize(vmin=vmin, vmax=vmax),
+            cmap='viridis'
+        )
+
+        # X axis
+        ax.set_xlabel("Position")
+        ax.set_xlim(-0.5, M.shape[1] - 0.5)
+        ax.set_xticks(np.linspace(0, M.shape[1]-1, num=min(11, M.shape[1])))
+
+        # Y axis: sequence names
+        n_rows = M.shape[0]
+        ax.set_ylabel("Sequence")
+        if n_rows <= 50:
+            ax.set_yticks(np.arange(n_rows))
+            ax.set_yticklabels(row_names)
+        else:
+            show_idx = np.linspace(0, n_rows - 1, 50, dtype=int)
+            ax.set_yticks(show_idx)
+            ax.set_yticklabels([row_names[i] for i in show_idx])
+
+        # Colorbar
+        cbar = fig.colorbar(im, ax=ax)
+        cbar.set_label("Summed attribution")
+
+        # Row-wise highlight rectangles for [start, end]
+        for r, ((start, end), L) in enumerate(zip(row_spans, row_lengths)):
+            start_clamped = max(0, min(int(start), L-1))
+            end_clamped = max(0, min(int(end), L-1))
+            if end_clamped < start_clamped:
+                start_clamped, end_clamped = end_clamped, start_clamped
+
+            rect = Rectangle(
+                (start_clamped - 0.5, r - 0.5),
+                (end_clamped - start_clamped + 1),
+                1.0,
+                fill=True,
+                alpha=0.18,
+                edgecolor='none'
+            )
+            ax.add_patch(rect)
+
+            outline = Rectangle(
+                (start_clamped - 0.5, r - 0.5),
+                (end_clamped - start_clamped + 1),
+                1.0,
+                fill=False,
+                linewidth=0.6,
+                color='white'
+            )
+            ax.add_patch(outline)
+
+        ax.set_title(title)
+
+        os.makedirs(output_dir, exist_ok=True)
+        fig.savefig(out_path, dpi=200)
+        plt.close(fig)
+        logger.log_message(f"Saved {title} → {out_path}")
+
+    # Build matrices and plot
+    M_ok,  names_ok,  spans_ok,  lens_ok  = build_matrix(idx_correct)
+    M_bad, names_bad, spans_bad, lens_bad = build_matrix(idx_wrong)
+
+    out_ok  = os.path.join(output_dir, "saliency_grid_correct.png")
+    out_bad = os.path.join(output_dir, "saliency_grid_wrong.png")
+
+    plot_grid(M_ok,  names_ok,  spans_ok,  lens_ok,
+              title=f"Saliency grid — predicted correctly (#samples={len(idx_correct)})",
+              out_path=out_ok)
+
+    plot_grid(M_bad, names_bad, spans_bad, lens_bad,
+              title=f"Saliency grid — predicted wrongly (#samples={len(idx_wrong)})",
+              out_path=out_bad)
+
+    logger.log_message(f"Finished correctness-based group plots. Saved to {output_dir}.")
