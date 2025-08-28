@@ -24,11 +24,25 @@ To get started, follow these steps:
    cd TFBS
    ```
 
-2. **Create conda environment**  
-   ```bash
-   conda env create -f environment.yml
-   conda activate tfbs
-   ```
+
+2. **Create conda environment**
+
+This project provides two Conda environment files:
+
+- **Linux System :**  
+  Use [`environment_linux.yml`](environment_Linux.yml)  
+  ```bash
+  conda env create -f environment_linux.yml
+  conda activate tfbs
+  ```
+
+- **Cross-platform (works on Linux, macOS, Windows):**  
+  Use [`environment_cross-platform.yml`](environment_cross-platform.yml)  
+  ```bash
+  conda env create -f environment_cross-platform.yml
+  conda activate tfbs
+  ```
+> ⚠️ If you are not on Linux with an NVIDIA GPU, **do not use** the Linux environment file.
    
 3. **Navigate to the code directory**:
    ```bash

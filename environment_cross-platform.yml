@@ -1,0 +1,14 @@
+name: tfbs
+channels:
+  - defaults
+dependencies:
+  - python=3.10
+  - pytorch
+  - pytorch-cuda=12.4
+  - torchaudio
+  - torchvision
+  - pandas
+  - omegaconf
+  - einops
+  - scikit-learn
+  - bedtools
