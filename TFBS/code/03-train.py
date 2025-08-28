@@ -55,8 +55,8 @@ def set_best_params(config, logger, df_param_results):
         'freeze_layer',
         'best_epoch',
     ]
-    # Train for a fixed number of epochs, with no early stopping:
-    # take the average or median of 5 stopping epoch numbers during cross-validation phase.
+
+    # take the average of 5 folds during cross-validation phase.
     best_config = (
         df_param_results
         .groupby(config_cols)['best_val_f1']
@@ -71,7 +71,7 @@ def set_best_params(config, logger, df_param_results):
 
     logger.log_message(f"Best params: {best_params} with Avg val‑F1: {best_avg_f1}")
 
-    # Update config based on best params
+    # update config based on best params
     update_config_for_grid_search(config, best_params['train_batch_size'], best_params['learning_rate'],
                                   best_params['weight_decay'], best_params['freeze_layer'], best_params['best_epoch'])
 
@@ -99,79 +99,88 @@ if __name__ == "__main__":
 
     tt = Train_Test(logger, config.model.max_length, config.device, config.eval_batch_size, training_params=config.training)
 
-    param_results_csv_file = os.path.join(output_dir, 'hyper_params.csv')
+    model_param_values = list(vars(config.training.model_params).values())
+    grid_combinations = list(product(*model_param_values))
 
-    if not os.path.exists(param_results_csv_file):
-        model_param_values = list(vars(config.training.model_params).values())
-        grid_combinations = list(product(*model_param_values))
+    if len(grid_combinations) != 1:
         logger.log_message(f'There are {len(grid_combinations)} combination of parameters...')
 
-        param_results = []
-        logger.log_message("*******Running with all parameters available to get the best one: *******")
-        # train based on each combination
-        for freeze_layer, train_batch_size, learning_rate, weight_decay in grid_combinations:
-            logger.log_message("\n********************************************************************")
-            logger.log_message(f"Training with batch_size={train_batch_size}, learning_rate={learning_rate},"
-                        f" weight_decay={weight_decay}, freeze_layer={freeze_layer}")
+        param_results_csv_file = os.path.join(output_dir, 'hyper_params.csv')
+        if not os.path.exists(param_results_csv_file):
+            param_results = []
+            logger.log_message("*******Running with all parameters available to get the best one: *******")
+            # train based on each combination
+            for freeze_layer, train_batch_size, learning_rate, weight_decay in grid_combinations:
+                logger.log_message("\n********************************************************************")
+                logger.log_message(f"Training with batch_size={train_batch_size}, learning_rate={learning_rate},"
+                            f" weight_decay={weight_decay}, freeze_layer={freeze_layer}")
 
-            # Update config for this combination
-            update_config_for_grid_search(config, train_batch_size, learning_rate, weight_decay, freeze_layer, config.training.num_epochs)
+                # Update config for this combination
+                update_config_for_grid_search(config, train_batch_size, learning_rate, weight_decay, freeze_layer, config.training.num_epochs)
 
-            # loop over each fold to find best params
-            for fold in range(1, config.split_config.fold + 1):
-                logger.log_message(f'**** Fold {fold}')
+                # loop over each fold to find best params
+                for fold in range(1, config.split_config.fold + 1):
+                    logger.log_message(f'**** Fold {fold}')
 
-                # reset to initial model
-                model.load_state_dict(base_sd)
-                tt.model = model
+                    # reset to initial model
+                    model.load_state_dict(base_sd)
+                    tt.model = model
 
-                ds_train = get_ds(config.model, tokenizer, dfs_train.get(fold))
-                ds_val = get_ds(config.model, tokenizer, dfs_val.get(fold))
+                    ds_train = get_ds(config.model, tokenizer, dfs_train.get(fold))
+                    ds_val = get_ds(config.model, tokenizer, dfs_val.get(fold))
 
-                cur_model_name = f'Fold-{fold}'
+                    cur_model_name = f'Fold-{fold}'
 
-                if config.wandb.enabled:  # visualization with wandb
-                    project_name, run_name = get_wandb_params(config, cur_model_name)
-                    init_wandb(logger, config.wandb, model, project_name, run_name)
+                    if config.wandb.enabled:  # visualization with wandb
+                        project_name, run_name = get_wandb_params(config, cur_model_name)
+                        init_wandb(logger, config.wandb, model, project_name, run_name)
 
-                (trainable_params, best_epoch, best_val_acc, best_val_auroc,
-                 best_val_auprc, best_val_f1, best_val_mcc, train_time)\
-                    = tt.train(ds_train, cur_model_name, wandb, ds_val=ds_val)
+                    (trainable_params, best_epoch, best_val_acc, best_val_auroc,
+                     best_val_auprc, best_val_f1, best_val_mcc, train_time)\
+                        = tt.train(ds_train, cur_model_name, wandb, ds_val=ds_val)
 
-                # Aapend results for this fold
-                param_results.append({
-                    'fold': fold,
-                    'params': serialize_dict(config.training.model_params),
-                    'train_batch_size': train_batch_size,
-                    'eval_batch_size': config.eval_batch_size,
-                    'learning_rate': learning_rate,
-                    'weight_decay': weight_decay,
-                    'freeze_layer': freeze_layer,
-                    'trainable_params': trainable_params,
-                    'train_time(s)': train_time,
-                    'best_epoch': best_epoch,
-                    'best_val_acc': round(best_val_acc, 2),
-                    'best_val_f1': round(best_val_f1, 2),
-                    'best_val_mcc': round(best_val_mcc, 2),
-                    'best_val_auroc': round(best_val_auroc, 2),
-                    'best_val_auprc': round(best_val_auprc, 2)
-                })
+                    # Aapend results for this fold
+                    param_results.append({
+                        'fold': fold,
+                        'params': serialize_dict(config.training.model_params),
+                        'train_batch_size': train_batch_size,
+                        'eval_batch_size': config.eval_batch_size,
+                        'learning_rate': learning_rate,
+                        'weight_decay': weight_decay,
+                        'freeze_layer': freeze_layer,
+                        'trainable_params': trainable_params,
+                        'train_time(s)': train_time,
+                        'best_epoch': best_epoch,
+                        'best_val_acc': round(best_val_acc, 2),
+                        'best_val_f1': round(best_val_f1, 2),
+                        'best_val_mcc': round(best_val_mcc, 2),
+                        'best_val_auroc': round(best_val_auroc, 2),
+                        'best_val_auprc': round(best_val_auprc, 2)
+                    })
 
-                if config.wandb.enabled:
-                    wandb.finish()
+                    if config.wandb.enabled:
+                        wandb.finish()
 
-        df_param_results = pd.DataFrame(param_results)
-        df_param_results.to_csv(param_results_csv_file, index=False)
-        logger.log_message(f"Grid search results saved to {param_results_csv_file}", use_time=True)
+            df_param_results = pd.DataFrame(param_results)
+            df_param_results.to_csv(param_results_csv_file, index=False)
+            logger.log_message(f"Grid search results saved to {param_results_csv_file}", use_time=True)
+
+        else:
+            df_param_results = pd.read_csv(param_results_csv_file)
+
+        logger.log_message("**************************************************************************")
+        logger.log_message("Retrain the model using best params on whole training data")
+        logger.log_message("**************************************************************************")
+
+        best_params = set_best_params(config, logger, df_param_results)
+        logger.log_message(f"Best hyperparams: {best_params}")
 
     else:
-        df_param_results = pd.read_csv(param_results_csv_file)
-
-    logger.log_message("**************************************************************************")
-    logger.log_message("Retrain the model using best params on whole training data")
-    logger.log_message("**************************************************************************")
-
-    best_params = set_best_params(config, logger, df_param_results)
+        logger.log_message("Only one combination of parameters,"
+                           " starting to train model on whole training data...")
+        freeze_layer, train_batch_size, learning_rate, weight_decay = grid_combinations[0]
+        update_config_for_grid_search(config, train_batch_size, learning_rate, weight_decay, freeze_layer,
+                                      config.training.num_epochs)
 
     ds_whole_train = get_ds(config.model, tokenizer, df_train_val)
     ds_test = get_ds(config.model, tokenizer, df_test)
@@ -205,4 +214,3 @@ if __name__ == "__main__":
     training_stats_csv_file = os.path.join(output_dir, 'training_stats.csv')
     df_training_stats.to_csv(training_stats_csv_file, index=False)
     logger.log_message(f"\nTraining stats based on different seeds saved to {training_stats_csv_file}", use_time=True)
-    logger.log_message(f"Best hyperparams: {best_params}")
