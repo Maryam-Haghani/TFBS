@@ -1,13 +1,14 @@
-input_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/fastas/At-chromosome1.fa"
+input_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/TFBS/TFBS/inputs/fastas/AT2G21510.fa"
 
 model:
   model_name: "HyenaDNA"
   model_version: "hyenadna-tiny-1k-seqlen"
   use_padding: true
   max_length: 264
-  saved_model_dir: "../outputs/ABFs_cross-species/test-Si/HyenaDNA/hyenadna-tiny-1k-seqlen/standard/relaxed/models"
+#  saved_model_dir: "../outputs/ABFs_cross-species/test-At/HyenaDNA/hyenadna-tiny-1k-seqlen/standard/relaxed/models"
+  saved_model_dir: "../outputs/AtABFs_cross_chromosome/test-2/HyenaDNA/hyenadna-tiny-1k-seqlen/standard/relaxed/models"
 
 device: "cuda"
 eval_batch_size: 32
 window_size: 264
-stride: 100
+stride: 64

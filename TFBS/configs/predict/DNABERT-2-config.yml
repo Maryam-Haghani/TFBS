@@ -1,4 +1,4 @@
-input_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/samples/Sun2022-SiABFs_shuffle_neg_stride_200.csv"
+input_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/TFBS/TFBS/inputs/samples/Sun2022-SiABFs_shuffle_neg_stride_200.csv"
 
 model:
   model_name: "DNABERT-2"

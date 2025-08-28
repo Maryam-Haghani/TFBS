@@ -1,9 +1,9 @@
-dataset_path: [ "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/samples/Malley2016-AtABF2_shuffle_neg_stride_201.csv",
-                "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/samples/Sun2022-AtABF2_shuffle_neg_stride_201.csv" ]
+dataset_path: [ "../inputs/samples/Malley2016-AtABF2_shuffle_neg_stride_201.csv",
+                "../inputs/samples/Sun2022-AtABF2_shuffle_neg_stride_201.csv" ]
 
 ############
 name: "AtABF2_cross-dataset"
-split_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/data_splits"
+split_dir: "../data_splits"
 test_split_type: "cross"  # Options: 'random' or 'cross'
 val_split_type: "n-fold" # Options: 'cross', 'n-fold' - can be 'cross' when test_split_type is 'cross', as well
 id_column: "dataset"

@@ -25,7 +25,7 @@ class HyenaDNAModel:
     def load_pretrained_model(self):
         self.logger.log_message(f"Getting pretrained model '{self.pretrained_model_name}' on device '{self.device}'...")
         model = HyenaDNAPreTrainedModel.from_pretrained(
-            "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/scripts/models/checkpoints",
+            "/projects/intro2gds/Maryam_HyenaDNA_202503/TFBS/TFBS/scripts/models/checkpoints",
             self.pretrained_model_name,
             download=True,
             device=self.device,

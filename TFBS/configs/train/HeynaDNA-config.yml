@@ -1,4 +1,4 @@
-output_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/outputs"
+output_dir: "../outputs"
 
 model:
   model_name: "HyenaDNA"

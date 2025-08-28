@@ -1,13 +1,13 @@
-dataset_path: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/samples/Sun2022-AtABFs_shuffle_neg_stride_200.csv"
+dataset_path: "../inputs/samples/Sun2022-AtABFs_shuffle_neg_stride_200.csv"
 
 #############
 name: "AtABFs_cross_chromosome"
-split_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/data_splits"
+split_dir: "../data_splits"
 test_split_type: "cross"  # Options: 'random' or 'cross'
 val_split_type: "n-fold" # Options: 'cross', 'n-fold' - can be 'cross' when test_split_type is 'cross', as well
 id_column: "chromosomeId"
 val_ids: [] # should be assigned for 'cross' val_split_type
-test_ids: [4] # should be assigned for 'cross' test_split_type ---> one value among 1, 2, 3, 4, 5
+test_ids: [2] # should be assigned for 'cross' test_split_type ---> one value among 1, 2, 3, 4, 5
 test_size: 0.2 # should be assigned for 'random' test_split_type
 fold: 5 # should be > 1 for 'n-fold' val_split_type, else 1
 random_state: 436346

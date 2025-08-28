@@ -1,4 +1,5 @@
-input_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/inputs/samples/Sun2022-SiABFs_shuffle_neg_stride_200.csv"
+input_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/TFBS/TFBS/inputs/samples/Sun2022-SiABFs_shuffle_neg_stride_200.csv"
+#input_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/TFBS/TFBS/data_splits/AtABFs_cross_chromosome/test-[2]-relaxed/test_dataset.csv"
 
 model:
   model_name: "HyenaDNA"
@@ -6,8 +7,9 @@ model:
   use_padding: true
   max_length: 264
   saved_model_dir: "../outputs/ABFs_cross-species/test-Si/HyenaDNA/hyenadna-tiny-1k-seqlen/standard/relaxed/models"
+#  saved_model_dir: "../outputs/AtABFs_cross_chromosome/test-2/HyenaDNA/hyenadna-tiny-1k-seqlen/standard/relaxed/models"
 
 device: "cuda"
 eval_batch_size: 32
 saliency_method: 'smoothgrad' # options:  'vanilla', 'smoothgrad', 'integrated', 'deeplift'
-num_saliency_samples: 2
+num_saliency_samples: 50

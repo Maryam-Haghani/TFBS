@@ -1,4 +1,4 @@
-output_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/outputs"
+output_dir: "../outputs"
 
 model:
   model_name: "DeepBind"
@@ -7,7 +7,7 @@ model:
 
 split_config: # SAME AS CONFIG IN "data_split" DIR
   name: "AtABFs_cross_chromosome"
-  split_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/data_splits"
+  split_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/TFBS/TFBS/data_splits"
   test_split_type: "cross"  # Options: 'random' or 'cross'
   val_split_type: "n-fold" # Options: 'cross', 'n-fold' - can be 'cross' when test_split_type is 'cross', as well
   id_column: "chromosomeId"

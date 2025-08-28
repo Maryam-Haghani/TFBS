@@ -9,4 +9,4 @@ model:
   use_pretrained_model: true
 
 # required when use_pretrained_model is false (use_saved_model)
-output_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/HyenaDNA/TFBS/outputs"
+output_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/TFBS/TFBS/outputs"
