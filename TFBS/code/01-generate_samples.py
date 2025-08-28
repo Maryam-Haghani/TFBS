@@ -93,11 +93,11 @@ def load_fasta_sequences(fasta_file):
     return SeqIO.to_dict(SeqIO.parse(fasta_file, "fasta"))
 
 # Calculate required padding to reach fixed_length if fixed_length is not 0
-def calculate_padding(ind, peak_region_length, sliding_window, fixed_length):
+def calculate_padding(uid, peak_region_length, sliding_window, fixed_length):
     if fixed_length is not None:
         if peak_region_length > fixed_length:
             raise ValueError(
-                f"Index {ind + 1}: Peak region length ({peak_region_length}) is larger than fixed_length ({fixed_length})")
+                f"UID {uid}: Peak region length ({peak_region_length}) is larger than fixed_length ({fixed_length})")
         total_padding = fixed_length - peak_region_length
         left_pad = total_padding // 2
         right_pad = total_padding - left_pad
@@ -132,17 +132,18 @@ def generate_positive_samples(logger, peaks_df, fasta_sequences, species, slidin
     positive_samples, peaks, start_end_inds = [], [], []
     not_found = 0
 
-    for ind, row in peaks_df.iterrows():
+    for _, row in peaks_df.iterrows():
+        uid = row["uid"]
         chrom_id = process_chrom_id(row["ChrID"], species)
         start, end = row["start"], row["end"]
         peak_length = end - start + 1 # end_ind is inclusive
 
         if chrom_id not in fasta_sequences:
-            logger.log_message(f"Index {ind + 1}: {chrom_id} not in fasta file!")
+            logger.log_message(f"UID {uid} not in fasta file!")
             not_found += 1
             continue
 
-        left_pad, right_pad = calculate_padding(ind, peak_length, sliding_window, fixed_length)
+        left_pad, right_pad = calculate_padding(uid, peak_length, sliding_window, fixed_length)
 
         # Extract sequence with appropriate padding
         chromosome_sequence = fasta_sequences[chrom_id].seq
@@ -151,9 +152,9 @@ def generate_positive_samples(logger, peaks_df, fasta_sequences, species, slidin
 
         sequence = convert_non_standard_to_N(sequence)
         if all_N(sequence):
-            logger.log_message(f"Row {ind + 1}: All bases are N, ignoring the row...")
+            logger.log_message(f"UID {uid}: All bases are N, ignoring the row...")
         else:
-            positive_samples.append((sequence.upper(), chrom_id))
+            positive_samples.append((uid, sequence.upper(), chrom_id))
             peaks.append(chromosome_sequence[start:end+1])  # end_ind is inclusive
             start_end_inds.append((peak_start_ind_in_padded_seq, peak_end_ind_in_padded_seq))
 
@@ -183,9 +184,9 @@ def generate_negative_samples(logger, positive_samples, neg_type, fasta_sequence
     # concatenate all chromosome sequences in fasta_sequences
     all_sequences = "".join(str(record.seq) for record in fasta_sequences.values())
 
-    for sequence, chrom_id in positive_samples:
+    for uid, sequence, chrom_id in positive_samples:
         neg_seq = create_negative_sequence(neg_type, sequence, all_sequences)
-        negative_samples.append((neg_seq, chrom_id))
+        negative_samples.append((uid, neg_seq, chrom_id))
 
     logger.log_message(f"Generated {len(negative_samples)} negative samples.")
     return negative_samples
@@ -210,6 +211,10 @@ if __name__ == "__main__":
 
     peaks_df = pd.read_csv(args.peak_file)
     logger.log_message(f"Loaded peak file {args.peak_file} with {len(peaks_df)} sequences.")
+    # add unique identifier to peaks
+    peaks_df.insert(0, 'uid', range(1, len(peaks_df) + 1))
+    peak_file = os.path.splitext(args.peak_file)[0]
+    peaks_df.to_csv(f"{peak_file}_processed.csv", index=False)
 
     positive_samples, peaks, peak_start_end_inds_in_padded_seq = generate_positive_samples(logger, peaks_df, fasta_sequences, args.species,
                                                         args.sliding_window, args.fixed_length)
@@ -217,17 +222,16 @@ if __name__ == "__main__":
 
     # combine positive and negative samples into a DataFrame
     data = pd.DataFrame({
+        "peak_uid": [uid for uid, _, _ in positive_samples + negative_samples],
         "species": [args.species] * (len(positive_samples) + len(negative_samples)),
-        "chromosomeId": [chrom for _, chrom in positive_samples + negative_samples],
+        "chromosomeId": [chrom for _, _, chrom in positive_samples + negative_samples],
         'dataset': [args.dataset] * (len(positive_samples) + len(negative_samples)),
         "peak": [peak for peak in peaks + peaks],
         "peak_start_end_index": [start_end_ind for start_end_ind in
                                  peak_start_end_inds_in_padded_seq + peak_start_end_inds_in_padded_seq],
-        "sequence": [seq for seq, _ in positive_samples + negative_samples],
+        "sequence": [seq for _, seq, _ in positive_samples + negative_samples],
         "label": [1] * len(positive_samples) + [0] * len(negative_samples)
     })
-    # add unique identifier
-    data.insert(0, 'uid', range(1, len(data) + 1))
 
     data.to_csv(args.output_file, index=False)
     logger.log_message(f"Output saved to {args.output_file} with {len(data)} samples.")

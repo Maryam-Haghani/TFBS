@@ -32,7 +32,7 @@ class FoundationDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         if self.mode == "df":
-            uid = self.data.iloc[idx]['uid']
+            uid = self.data.iloc[idx]['peak_uid']
             sequence = self.data.iloc[idx]['sequence']
             label = self.data.iloc[idx]['label']
             peak_start, peak_end = ast.literal_eval(self.data.iloc[idx]['peak_start_end_index'])

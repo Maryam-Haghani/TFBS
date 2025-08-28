@@ -15,7 +15,7 @@ class DeepBindDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         sequence = self.df.iloc[idx][self.sequence_column]
         label = self.df.iloc[idx][self.label_column]
-        uid = self.df.iloc[idx]['uid']
+        uid = self.df.iloc[idx]['peak_uid']
         peak_start, peak_end = ast.literal_eval(self.df.iloc[idx]['peak_start_end_index'])
 
         padded_sequence = self.pad_or_trim_sequence(sequence)

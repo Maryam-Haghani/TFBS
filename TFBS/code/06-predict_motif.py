@@ -29,7 +29,7 @@ def write_fasta(df, filename):
     """Write a FASTA file from a DataFrame"""
     with open(filename, 'w') as out:
         for _, row in df.iterrows():
-            out.write(f">{row['uid']} Label:{row['label']} Peak:{row['peak']}\n{row['sequence']}\n")
+            out.write(f">{row['peak_uid']} Label:{row['label']} Peak:{row['peak']}\n{row['sequence']}\n")
 
 def run_meme(pos_input_fasta, neg_input_fasta, out_dir, nmotifs=5, seed=0, evt= 0.05, meme_path="meme"):
     """Run MEME to generate motif PWM."""
@@ -96,7 +96,7 @@ def evaluate_fimo(df_ground, fimo_output):
     logger.log_message(f"length of unique sequences in predicted: {len(df_predicted)}")
 
     df = df_ground.merge(df_predicted, how='left',
-                         left_on='uid', right_on='sequence_name')
+                         left_on='peak_uid', right_on='sequence_name')
 
     logger.log_message(f"length of merged df: {len(df)}")
     # indicator

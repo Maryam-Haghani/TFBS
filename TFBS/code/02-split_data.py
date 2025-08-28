@@ -15,7 +15,7 @@ if __name__ == "__main__":
     config = load_config(args.config_file)
 
     logger = CustomLogger(__name__, log_directory=config.split_dir, log_file=f'{config.name}.log')
-    logger.log_message(f"Configuration loaded: {config}")
+    logger.log_message(f"\n\n*********** Configuration loaded: {config}")
 
     torch.manual_seed(config.random_state)
     torch.cuda.manual_seed_all(config.random_state)
