@@ -79,8 +79,8 @@ class Train_Test:
 
         return avg_train_loss
 
-    def train(self, ds_train, model_name, wandb, ds_val=None, model_dir = None):
-        has_validation = ds_val is not None
+    def train(self, ds_train, ds_val, model_name, wandb, model_dir = None):
+        save_model = model_dir is not None
 
         self._freeze_layers()
 
@@ -107,14 +107,13 @@ class Train_Test:
         self.model.to(self.device)
 
         train_loader = DataLoader(ds_train, batch_size=self.training.model_params.train_batch_size, shuffle=True)
-        if has_validation:
-            val_loader = DataLoader(ds_val, batch_size=self.eval_batch_size, shuffle=False)
-            early_stopping = EarlyStopping(
-                logger = self.logger,
-                patience=self.training.early_stopping.patience,
-                verbose=True,
-                delta=self.training.early_stopping.delta
-            )
+        val_loader = DataLoader(ds_val, batch_size=self.eval_batch_size, shuffle=False)
+        early_stopping = EarlyStopping(
+            logger = self.logger,
+            patience=self.training.early_stopping.patience,
+            verbose=True,
+            delta=self.training.early_stopping.delta
+        )
 
         start_time = time.time()  # START TRAINING TIME
         # training
@@ -123,28 +122,22 @@ class Train_Test:
             self.logger.log_message(f'Epoch {epoch+1}/{self.training.num_epochs}')
 
             train_loss = self._train(train_loader, optimizer, epoch, loss_fn)
-            if has_validation:
-                val_acc, val_auroc, val_auprc, val_f1, val_mcc, val_loss = self._test(
-                    val_loader, model_name, loss_fn=loss_fn
-                )
-                val_metrics[epoch] = (round(val_acc, 3), round(val_auroc, 3), round(val_auprc, 3),
-                                      round(val_f1, 3), round(val_mcc, 3))
+            val_acc, val_auroc, val_auprc, val_f1, val_mcc, val_loss = self._test(
+                val_loader, model_name, loss_fn=loss_fn
+            )
+            val_metrics[epoch] = (round(val_acc, 3), round(val_auroc, 3), round(val_auprc, 3),
+                                  round(val_f1, 3), round(val_mcc, 3))
 
-                log_params = {
-                    "epoch": epoch + 1,
-                    "train loss": train_loss,
-                    "val loss": val_loss,
-                    "val ACC": val_acc,
-                    "val AUROC": val_auroc,
-                    "val AUPRC": val_auprc,
-                    "val F1": val_f1,
-                    "val MCC": val_mcc
-                }
-            else:
-                log_params = {
-                    "epoch": epoch + 1,
-                    "train loss": train_loss,
-                }
+            log_params = {
+                "epoch": epoch + 1,
+                "train loss": train_loss,
+                "val loss": val_loss,
+                "val ACC": val_acc,
+                "val AUROC": val_auroc,
+                "val AUPRC": val_auprc,
+                "val F1": val_f1,
+                "val MCC": val_mcc
+            }
 
             if wandb is not None:
                 wandb.log(log_params)
@@ -152,20 +145,19 @@ class Train_Test:
                 self.logger.log_message("wandb is not enabled. Skipping logging.")
 
             # check early stopping criteria
-            if has_validation:
-                early_stopping(val_loss, self.model, epoch)
-                if early_stopping.early_stop:
-                    best_epoch = early_stopping.best_epoch
-                    best_val_acc, best_val_auroc, best_val_auprc, best_val_f1, best_val_mcc = val_metrics[
-                        best_epoch]
-                    self.logger.log_message(f"Early stopping triggered. Stopping training at epoch {epoch+1}.\nbest epoch: {best_epoch+1}")
-                    self.logger.log_message(f"Metrics for best epoch: best_val_acc: {best_val_acc}, best_val_auroc: {best_val_auroc},"
-                                            f" best_val_auprc: {best_val_auprc}, best_val_f1: {best_val_f1}, best_val_mcc: {best_val_mcc}")
-                    break
+            early_stopping(val_loss, self.model, epoch)
+            if early_stopping.early_stop:
+                best_epoch = early_stopping.best_epoch
+                best_val_acc, best_val_auroc, best_val_auprc, best_val_f1, best_val_mcc = val_metrics[
+                    best_epoch]
+                self.logger.log_message(f"Early stopping triggered. Stopping training at epoch {epoch+1}.\nbest epoch: {best_epoch+1}")
+                self.logger.log_message(f"Metrics for best epoch: best_val_acc: {best_val_acc}, best_val_auroc: {best_val_auroc},"
+                                        f" best_val_auprc: {best_val_auprc}, best_val_f1: {best_val_f1}, best_val_mcc: {best_val_mcc}")
+                break
 
         training_time = time.time() - start_time  # END TRAINING TIME
 
-        if not has_validation: # training whole data
+        if save_model: # save the model trained on whole data
             # save the model
             model_path = os.path.join(model_dir, f'{model_name}.pt')
             torch.save(self.model.state_dict(), model_path)

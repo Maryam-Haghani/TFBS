@@ -42,8 +42,20 @@ class DataSplit:
         else:  # self.config.test_split_type == "cross"
             df_test, df_train_val = self._split_dataset_by_id(df, 'test', self.config.test_ids)
 
-        # save whole train data
+        # save whole train data and hold_out validation
         df_train_val.to_csv(os.path.join(split_path, "whole_train_dataset.csv"), index=False)
+
+        df_train, df_holdout_val = train_test_split(
+            df_train_val,
+            test_size=0.05,  # 5% hold-out
+            random_state=self.config.random_state,
+            shuffle=True
+        )
+
+        df_train.to_csv(os.path.join(split_path, "train_dataset.csv"), index=False)
+        print(f"Training set size: {len(df_train)}")
+        df_holdout_val.to_csv(os.path.join(split_path, "hold_out_val_dataset.csv"), index=False)
+        print(f"Hold out Validation set size: {len(df_holdout_val)}")
 
         # now create train and val splits
         if self.config.val_split_type == "cross":
@@ -83,7 +95,11 @@ class DataSplit:
 
         self.logger.log_message(f"Loading '{self.config.test_split_type}' test split from {split_path}")
         df_test = pd.read_csv(os.path.join(split_path, 'test_dataset.csv'))
-        df_train_val = pd.read_csv(os.path.join(split_path, "whole_train_dataset.csv"))
+
+        df_train= pd.read_csv(os.path.join(split_path, "train_dataset.csv"))
+        print(f"Training set size: {len(df_train)}")
+        df_holdout_val = pd.read_csv(os.path.join(split_path, "hold_out_val_dataset.csv"))
+        print(f"Hold out Validation set size: {len(df_holdout_val)}")
 
         self.logger.log_message(
             f"Loading '{self.config.val_split_type}' train-val splits from {val_split_path}")
@@ -109,7 +125,7 @@ class DataSplit:
             dfs_train = {1: pd.read_csv(os.path.join(val_split_path, 'train_dataset.csv'))}
             dfs_val = {1: pd.read_csv(os.path.join(val_split_path, 'val_dataset.csv'))}
 
-        return dfs_train, dfs_val, df_train_val, df_test
+        return dfs_train, dfs_val, df_train, df_holdout_val, df_test
 
     def _read_dataset(self, dataset_paths):
         dfs = []

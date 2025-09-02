@@ -31,7 +31,7 @@ def setup_logger_and_out(config):
 def get_wandb_params(config, prependix):
     """Initialize and log to wandb if enabled."""
     name = make_folder_name(config.split_config, is_path=False)
-    project_name =  f"{get_model_name(config.model)}_{name}_{config.split_config.partition_mode}"
+    project_name =  f"MLCB_{get_model_name(config.model)}_{name}_{config.split_config.partition_mode}"
     run_name = f'{prependix}_{serialize_dict(config.training.model_params)}'
     return project_name, run_name
 
@@ -92,7 +92,7 @@ if __name__ == "__main__":
     torch.manual_seed(config.split_config.random_state)
     torch.cuda.manual_seed_all(config.split_config.random_state)
 
-    dfs_train, dfs_val, df_train_val, df_test = DataSplit.get_splits(logger, config.split_config, label='label')
+    dfs_train, dfs_val, df_train, df_holdout_val, df_test = DataSplit.get_splits(logger, config.split_config, label='label')
 
     model, tokenizer = init_model_and_tokenizer(logger, config.model, config.device)
     base_sd = model.state_dict()
@@ -137,7 +137,7 @@ if __name__ == "__main__":
 
                     (trainable_params, best_epoch, best_val_acc, best_val_auroc,
                      best_val_auprc, best_val_f1, best_val_mcc, train_time)\
-                        = tt.train(ds_train, cur_model_name, wandb, ds_val=ds_val)
+                        = tt.train(ds_train, ds_val, cur_model_name, wandb)
 
                     # Aapend results for this fold
                     param_results.append({
@@ -182,7 +182,8 @@ if __name__ == "__main__":
         update_config_for_grid_search(config, train_batch_size, learning_rate, weight_decay, freeze_layer,
                                       config.training.num_epochs)
 
-    ds_whole_train = get_ds(config.model, tokenizer, df_train_val)
+    ds_train = get_ds(config.model, tokenizer, df_train)
+    ds_holdout_val = get_ds(config.model, tokenizer, df_holdout_val)
     ds_test = get_ds(config.model, tokenizer, df_test)
 
     # loop over each seed
@@ -198,7 +199,7 @@ if __name__ == "__main__":
             project_name, run_name = get_wandb_params(config, cur_model_name)
             init_wandb(logger, config.wandb, model, project_name, run_name)
 
-        trainable_params, train_time = tt.train(ds_whole_train, cur_model_name, wandb, model_dir= model_dir)
+        trainable_params, train_time = tt.train(ds_train, ds_holdout_val, cur_model_name, wandb, model_dir= model_dir)
 
         training_stats.append({
             'seed': seed,
