@@ -5,21 +5,6 @@ model:
   kernel_length: 24
   max_length: 264
 
-split_config: # SAME AS CONFIG IN "data_split" DIR
-  name: "AtABFs_cross_chromosome"
-  split_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/TFBS/TFBS/data_splits"
-  test_split_type: "cross"  # Options: 'random' or 'cross'
-  val_split_type: "n-fold" # Options: 'cross', 'n-fold' - can be 'cross' when test_split_type is 'cross', as well
-  id_column: "chromosomeId"
-  val_ids: [] # should be assigned for 'cross' val_split_type
-  test_ids: [1] # should be assigned for 'cross' test_split_type
-  test_size: 0.2 # should be assigned for 'random' test_split_type
-  fold: 5 # should be > 1 for 'n-fold' val_split_type, else 1
-  random_state: 436346
-  partition_mode: 'relaxed' # Options: 'relaxed' or 'strict'
-  sim: 0.9 # required when 'partition_mode' is strict
-  word_size: 8 # required when 'partition_mode' is strict
-
 device: "cuda"
 
 training:

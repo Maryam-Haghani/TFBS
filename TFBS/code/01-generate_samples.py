@@ -168,7 +168,7 @@ def create_negative_sequence(neg_type, sequence, all_sequences):
         neg_seq = "".join(random.sample(sequence, len(sequence)))  # Shuffle sequence: picks all letters but in random order
     elif neg_type == "dinuc_shuffle":
         from ushuffle import shuffle
-        neg_seq = shuffle(sequence.encode('utf-8'), 2).decode('utf-8')
+        neg_seq = shuffle(sequence, len(sequence), 2)
     elif neg_type == "random":
         # pick a random start position within all_sequences
         start = random.randint(0, len(all_sequences) - len(sequence))
