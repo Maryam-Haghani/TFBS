@@ -31,10 +31,17 @@ class Train_Test:
 
     # freeze specified layers by setting `requires_grad` to False.
     def _freeze_layers(self):
-        if self.training.model_params.freeze_layers != 'none':
+        # reset all params to trainable before setting a new freeze pattern
+        for _, p in self.model.named_parameters():
+            p.requires_grad = True
+
+        freeze_layers = self.training.model_params.freeze_layers
+        self.logger.log_message(f"Freeze layers: {freeze_layers}")
+
+        if freeze_layers != 'none':
             for name, param in self.model.named_parameters():
-                # freeze the layer if its name matches any of the freeze_layers
-                if any(layer in name for layer in self.training.model_params.freeze_layers):
+                # freeze the layer if its name contains the freeze_layers string
+                if freeze_layers in name:
                     param.requires_grad = False
                     self.logger.log_message(f"Freezing layer: {name}")
 
@@ -79,20 +86,24 @@ class Train_Test:
 
         return avg_train_loss
 
-    def train(self, ds_train, ds_val, model_name, wandb, model_dir = None):
+    def train(self, ds_train, ds_val, model_name, model_params, wandb, model_dir = None):
+
         save_model = model_dir is not None
+        self.training.model_params = model_params
 
         self._freeze_layers()
 
-        self.logger.log_message(f'model name: {model_name}')
-
-        # total number of parameters
+        # total parameters (all, trainable + frozen)
         total_params = sum(p.numel() for p in self.model.parameters())
-        self.logger.log_message(f"Total parameters: {total_params}")
-
         # trainable parameters
         trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        # frozen parameters
+        frozen_params = total_params - trainable_params
+
+        self.logger.log_message(f"Total parameters: {total_params}")
         self.logger.log_message(f"Trainable parameters: {trainable_params}")
+        self.logger.log_message(f"Frozen parameters: {frozen_params}")
+
 
         self.logger.log_message(f"Training...")
 
@@ -130,17 +141,16 @@ class Train_Test:
 
             log_params = {
                 "epoch": epoch + 1,
-                "train loss": train_loss,
-                "val loss": val_loss,
-                "val ACC": val_acc,
-                "val AUROC": val_auroc,
-                "val AUPRC": val_auprc,
-                "val F1": val_f1,
-                "val MCC": val_mcc
+                "train_loss": train_loss,
+                "val_loss": val_loss,
+                "val_AUROC": val_auroc,
+                "val_AUPRC": val_auprc,
+                "val_F1": val_f1,
+                "val_MCC": val_mcc
             }
 
             if wandb is not None:
-                wandb.log(log_params)
+                wandb.log(log_params, step=epoch+1)
             else:
                 self.logger.log_message("wandb is not enabled. Skipping logging.")
 
@@ -161,7 +171,7 @@ class Train_Test:
             # save the model
             model_path = os.path.join(model_dir, f'{model_name}.pt')
             torch.save(self.model.state_dict(), model_path)
-            self.logger.log_message(f"Model saved as: {model_path}")
+            self.logger.log_message(f"Model saved as: {model_path}", use_time=True)
 
             return f'{trainable_params} / {total_params}', training_time
 

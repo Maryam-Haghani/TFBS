@@ -1,9 +1,10 @@
-output_dir: "../outputs"
+output_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/TFBS/TFBS/MLCB_outputs"
 
 model:
   model_name: "DeepBind"
   kernel_length: 24
-  max_length: 264
+  max_length: 265
+  seeds: [565764, 535646, 224359, 989746, 654678]
 
 device: "cuda"
 
@@ -11,8 +12,8 @@ training:
   num_epochs: 200
   adjustable_LR:
     enabled: false
+  freeze_layers: 'none'
   model_params:
-    freeze_layers: ['none']
     train_batch_size: [64]
     learning_rate: [1e-4]
     weight_decay: [0.0001]

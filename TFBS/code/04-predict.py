@@ -83,7 +83,7 @@ if __name__ == "__main__":
     config.saliency_method = getattr(config, "saliency_method", 'smooth') # set to 'smooth' if None
 
     validate_saved_model_dir(config.model)
-    model_files = get_models(config.model.saved_model_dir)
+    model_dict = get_models(config.model.saved_model_dir)
 
     output_dir = get_output_dir(config)
 
@@ -107,43 +107,50 @@ if __name__ == "__main__":
 
     # get predictions for all models######
     results = []
-    for model_name in model_files:
-        logger.log_message(f'******************************** {model_name} ******************************** ')
-        load_current_model(config, model, base_sd, model_name)
 
-        logger.log_message(f'Getting prediction based on {model_name}')
-        name, _ext = os.path.splitext(model_name)
-        if args.mode == 'df':
-            test_accuracy, test_auroc, test_auprc, test_f1, test_mcc, test_time \
-                = tt.predict(model, ds, output_dir, name,
-                             num_saliency_samples=config.num_saliency_samples,
-                             saliency_method=config.saliency_method)
+    for freeze_layer, files in model_dict.items():
+        logger.log_message(f"******************************** Directory: {freeze_layer} ********************************")
+        for model_name in files:
+            model_dir = os.path.join(freeze_layer, model_name)
+            logger.log_message(f"********* Model: {model_dir} **********")
+            load_current_model(config, model, base_sd, model_dir)
 
-            results.append({
-                'model_name': model_name,
-                'test_accuracy': round(test_accuracy, 2),
-                'test_f1': round(test_f1, 2),
-                'test_mcc': round(test_mcc, 2),
-                'test_auroc': round(test_auroc, 2),
-                'test_auprc': round(test_auprc, 2),
-                'test_time(s)': test_time
-            })
+            logger.log_message(f'Getting prediction based on {model_dir}')
+            name, _ext = os.path.splitext(model_name)
+            current_output_dir = os.path.join(output_dir, freeze_layer)
+            os.makedirs(current_output_dir, exist_ok=True)
+            if args.mode == 'df':
+                test_accuracy, test_auroc, test_auprc, test_f1, test_mcc, test_time \
+                    = tt.predict(model, ds, current_output_dir, name,
+                                 num_saliency_samples=config.num_saliency_samples,
+                                 saliency_method=config.saliency_method)
 
-        elif args.mode == 'genome':
-            predictions = tt.predict(model, ds)
-            for start, end, probability in predictions:
-                results.append([name, start, end, abs_start+start, abs_start+end, probability])
+                results.append({
+                    'freeze layer': freeze_layer,
+                    'model_name': model_name,
+                    'test_accuracy': round(test_accuracy, 2),
+                    'test_f1': round(test_f1, 2),
+                    'test_mcc': round(test_mcc, 2),
+                    'test_auroc': round(test_auroc, 2),
+                    'test_auprc': round(test_auprc, 2),
+                    'test_time(s)': test_time
+                })
 
-            logger.log_message(f"Visualize genome prediction for {model_name}")
-            name = f"model_{model_name}"
+            elif args.mode == 'genome':
+                predictions = tt.predict(model, ds)
+                for start, end, probability in predictions:
+                    results.append([name, start, end, abs_start+start, abs_start+end, probability])
 
-            seq_length = len(data)
-            plot_promoter_position_probability(predictions, seq_length, abs_start, output_dir, name, strand="-", smooth="gaussian")
-            plot_promoter_position_probability(predictions, seq_length, abs_start, output_dir, name, strand="-", smooth="gaussian", agg="median")
-            plot_promoter_position_probability(predictions, seq_length, abs_start, output_dir, name, strand="-", smooth="spline")
-            plot_promoter_position_probability(predictions, seq_length, abs_start, output_dir, name, strand="-", smooth="spline", agg="median")
-            plot_promoter_position_probability(predictions, seq_length, abs_start, output_dir, name, strand="-", smooth="moving")
-            plot_promoter_position_probability(predictions, seq_length, abs_start, output_dir, name, strand="-", smooth="moving", agg="median")
+                logger.log_message(f"Visualize genome prediction for {model_name}")
+                name = f"model_{model_name}"
+
+                seq_length = len(data)
+                plot_promoter_position_probability(predictions, seq_length, abs_start, current_output_dir, name, strand="-", smooth="gaussian")
+                plot_promoter_position_probability(predictions, seq_length, abs_start, current_output_dir, name, strand="-", smooth="gaussian", agg="median")
+                plot_promoter_position_probability(predictions, seq_length, abs_start, current_output_dir, name, strand="-", smooth="spline")
+                plot_promoter_position_probability(predictions, seq_length, abs_start, current_output_dir, name, strand="-", smooth="spline", agg="median")
+                plot_promoter_position_probability(predictions, seq_length, abs_start, current_output_dir, name, strand="-", smooth="moving")
+                plot_promoter_position_probability(predictions, seq_length, abs_start, current_output_dir, name, strand="-", smooth="moving", agg="median")
     # save results to csv
     df_results = pd.DataFrame(results)
     if args.mode == 'genome':

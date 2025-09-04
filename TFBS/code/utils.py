@@ -144,10 +144,24 @@ def get_models(model_dir):
     if not p.is_dir():
         raise NotADirectoryError(f"Not a directory: {p}")
 
-    pt_files = list(p.glob("*.pt"))
-    if not pt_files:
-        raise FileNotFoundError(f"No model with .pt file format found in: {p}")
-    return [pt_file.name for pt_file in pt_files]
+    models_dict = {}
+
+    # Collect .pt files directly inside model_dir
+    root_files = [f.name for f in p.glob("*.pt")]
+    if root_files:
+        models_dict["__root__"] = root_files
+
+    # Collect .pt files from each subdirectory
+    for sub in p.iterdir():
+        if sub.is_dir():
+            pt_files = [f.name for f in sub.glob("*.pt")]
+            if pt_files:
+                models_dict[sub.name] = pt_files
+
+    if not models_dict:
+        raise FileNotFoundError(f"No .pt files found in {p} or its subdirectories.")
+
+    return models_dict
 
 def directory_not_empty(directory):
     return any(Path(directory).iterdir())
@@ -157,7 +171,7 @@ def init_wandb(logger, wandb_params, model, project_name, run_name):
         wandb.login(key=wandb_params.token)
 
         eastern = pytz.timezone(wandb_params.timezone)
-        wandb.init(project=f'NEW-{project_name}',
+        wandb.init(project=f'{project_name}',
                    entity=wandb_params.entity_name,
                    name=f"{run_name}-{datetime.now(eastern).strftime(wandb_params.timezone_format)}")
         wandb.watch(model, log="all")

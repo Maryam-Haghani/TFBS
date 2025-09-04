@@ -1,4 +1,4 @@
-output_dir: "../outputs"
+output_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/TFBS/TFBS/MLCB_outputs"
 
 model:
   model_name: "HyenaDNA"
@@ -6,7 +6,7 @@ model:
   use_padding: true
   max_length: 264
   finetune_type: "standard" # options: LoRA, standard
-  seeds: [0, 535646, 224359, 989746, 654678]
+  seeds: [565764, 535646, 224359, 989746, 654678]
 
 device: "cuda"
 
@@ -14,9 +14,9 @@ training:
   num_epochs: 60
   adjustable_LR:
     enabled: false
+  #    freeze_layers: 'none'
+  freeze_layers: ['backbone.layers', 'backbone', 'backbone.embeddings', 'none']
   model_params:
-    freeze_layers: ['none']
-    # freeze_layers: [ [ 'backbone' ], [ 'backbone.embeddings' ], [ 'backbone.layers' ], [ 'none' ] ]
     train_batch_size: [32]
     #    train_batch_size: [ 32, 64, 128, 256 ]
     learning_rate: [1e-4]

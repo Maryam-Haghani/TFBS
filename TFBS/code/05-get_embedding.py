@@ -137,7 +137,7 @@ if __name__ == "__main__":
     args = parse_arg()
     config = load_config(args.embed_config_file, args.split_config_file)
 
-    logger, model_dir, output_dir, plot_dir = setup_logger_and_out(config)
+    logger, parent_model_dir, output_dir, plot_dir = setup_logger_and_out(config)
 
     input(output_dir)
 
@@ -166,28 +166,30 @@ if __name__ == "__main__":
         visualize_embeddings(data, plot_dir, 'pretrtained')
 
     else: # use_saved_model
-        model_files = get_models(model_dir)
-        logger.log_message(f'Using saved model(s) in {model_dir} for prediction:\n{model_files}')
+        model_dict = get_models(config.model.saved_model_dir)
+        logger.log_message(f'Using saved model(s) in {parent_model_dir} for prediction:')
 
-        for model_name in model_files:
-            logger.log_message(f' **************************Model: {model_name} **************************')
+        for freeze_layer, files in model_dict.items():
+            logger.log_message(f"******************************** Directory: {freeze_layer} ********************************")
+            for model_name in files:
+                model_dir = os.path.join(freeze_layer, model_name)
+                logger.log_message(f"********* Model: {model_dir} **********")
+                logger.log_message(f"Loading checkpoint: {model_name}")
+                # reset the model to the initial state before loading the saved model.
+                model.load_state_dict(base_sd, strict=False)
+                sd = load_model(parent_model_dir, model_dir, config.device)
+                model.load_state_dict(sd, strict=False)
+                # Swap out head
+                replace_heads_with_identity(model, head_attr)
+                model.to(config.device).eval()
 
-            logger.log_message(f"Loading checkpoint: {model_name}")
-            # reset the model to the initial state before loading the saved model.
-            model.load_state_dict(base_sd, strict=False)
-            sd = load_model(model_dir, model_name, config.device)
-            model.load_state_dict(sd, strict=False)
-            # Swap out head
-            replace_heads_with_identity(model, head_attr)
-            model.to(config.device).eval()
+                model_name_without_format = model_name.split(".")[0]
 
-            model_name_without_format = model_name.split(".")[0]
+                embedding_train = get_embeddings(df_train_val, "train", model, tokenizer,
+                                                  config, logger, output_dir, model_name=model_name_without_format)
+                embedding_test = get_embeddings(df_test, "test", model, tokenizer,
+                                                 config, logger, output_dir, model_name=model_name_without_format)
+                data = {'train': embedding_train, 'test': embedding_test}
 
-            embedding_train = get_embeddings(df_train_val, "train", model, tokenizer,
-                                              config, logger, output_dir, model_name=model_name_without_format)
-            embedding_test = get_embeddings(df_test, "test", model, tokenizer,
-                                             config, logger, output_dir, model_name=model_name_without_format)
-            data = {'train': embedding_train, 'test': embedding_test}
-
-            logger.log_message(f"Visualize embedding for model: {model_name}")
-            visualize_embeddings(data, plot_dir, model_name_without_format)
+                logger.log_message(f"Visualize embedding for model: {model_name}")
+                visualize_embeddings(data, plot_dir, model_name_without_format)
