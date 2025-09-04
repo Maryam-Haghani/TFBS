@@ -47,7 +47,7 @@ class DataSplit:
 
         df_train, df_holdout_val = train_test_split(
             df_train_val,
-            test_size=0.05,  # 5% hold-out
+            test_size=self.config.hold_out_val_size,
             random_state=self.config.random_state,
             shuffle=True
         )

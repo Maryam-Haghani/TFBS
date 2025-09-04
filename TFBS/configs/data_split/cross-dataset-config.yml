@@ -10,6 +10,7 @@ id_column: "dataset"
 val_ids: [] # should be assigned for 'val_split_type'='cross'
 test_ids: ["Sun2022"] # should be assigned for 'test_split_type'='cross'
 test_size: 0.2 # should be assigned for 'test_split_type'='random'
+hold_out_val_size: 0.05
 fold: 5 # should be > 1 for 'val_split_type'='n-fold'
 random_state: 436346
 partition_mode: 'relaxed' # Options: 'relaxed' or 'strict'
