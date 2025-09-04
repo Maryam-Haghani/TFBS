@@ -2,8 +2,8 @@ dataset_path: ["../inputs/samples/Sun2022-AtABFs_dinuc_shuffle_neg_stride_200.cs
                "../inputs/samples/Sun2022-SiABFs_dinuc_shuffle_neg_stride_200.csv"]
 
 ##########
-name: "ABFs_cross-species"
-split_dir: "../data_splits/dinuc_shuffle"
+name: "ABFs_cross-species-dinuc_shuffle"
+split_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/TFBS/TFBS/data_splits/"
 test_split_type: "cross"  # Options: 'random' or 'cross'
 val_split_type: "n-fold" # 'cross', 'n-fold': can be 'cross' when test_split_type is 'cross', as well
 id_column: "species"
