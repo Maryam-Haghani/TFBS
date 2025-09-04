@@ -79,8 +79,8 @@ python 01-generate_samples.py --fasta_file path/to/your.fasta --peak_file path/t
 ##### For *A. thaliana* (ABF1-4) dataset:
 ```bash
 python 01-generate_samples.py --fasta_file ../inputs/fastas/Arabidopsis_thaliana.TAIR10.dna_sm.toplevel.fa --peak_file ../inputs/peak_files/Sun2022-AtABFs_DAP-Seq_peaks.csv --species "At" --dataset Sun2022 --neg_type dinuc_shuffle --output_file ../inputs/samples/Sun2022-AtABFs_dinuc_shuffle_neg_stride_200.csv
-#python 01-generate_samples.py --fasta_file ../inputs/fastas/Arabidopsis_thaliana.TAIR10.dna_sm.toplevel.fa --peak_file ../inputs/peak_files/Sun2022-AtABF2_DAP-Seq_peaks.csv --species "At" --dataset Sun2022 --neg_type dinuc_shuffle --output_file ../inputs/samples/Sun2022-AtABF2_dinuc_shuffle_neg_stride_200.csv
-#python 01-generate_samples.py --fasta_file ../inputs/fastas/Arabidopsis_thaliana.TAIR10.dna_sm.toplevel.fa --peak_file ../inputs/peak_files/Malley2016-AtABF2_DAP-Seq_peaks.csv --species "At" --dataset Malley2016 --neg_type dinuc_shuffle --output_file ../inputs/samples/Malley2016-AtABF2_dinuc_shuffle_neg_stride_200.csv
+#python 01-generate_samples.py --fasta_file ../inputs/fastas/Arabidopsis_thaliana.TAIR10.dna_sm.toplevel.fa --peak_file ../inputs/peak_files/Sun2022-AtABF2_DAP-Seq_peaks.csv --species "At" --dataset Sun2022 --neg_type dinuc_shuffle --fixed_length 201 --output_file ../inputs/samples/Sun2022-AtABF2_dinuc_shuffle_neg_fixed_201.csv
+#python 01-generate_samples.py --fasta_file ../inputs/fastas/Arabidopsis_thaliana.TAIR10.dna_sm.toplevel.fa --peak_file ../inputs/peak_files/Malley2016-AtABF2_DAP-Seq_peaks.csv --species "At" --dataset Malley2016 --neg_type dinuc_shuffle --fixed_length 201 --output_file ../inputs/samples/Malley2016-AtABF2_dinuc_shuffle_neg_fixed_201.csv
 ```
 To run this command, you should download the FASTA file for the *A. thaliana* genome and place it in the `./TFBS/inputs/fastas` directory.
 ##### For *S. irio* (ABF1-4) dataset:
