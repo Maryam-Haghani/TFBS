@@ -113,7 +113,7 @@ def make_folder_name(split_config, is_path=True):
             name = f"{name}-test-{id_str}"
     return name
 
-def make_dirs(config):
+def make_dirs(config, make_model_dir=True):
     name = make_folder_name(config.split_config)
 
     output_dir = os.path.join(config.output_dir, name, config.model.model_name,
@@ -130,10 +130,14 @@ def make_dirs(config):
 
     os.makedirs(output_dir, exist_ok=True)
 
-    model_dir = os.path.join(output_dir, "models")
-    os.makedirs(model_dir, exist_ok=True)
+    if make_model_dir:
+        model_dir = os.path.join(output_dir, "models")
+        os.makedirs(model_dir, exist_ok=True)
+        return output_dir, model_dir
+    else:
+        return output_dir
 
-    return output_dir, model_dir
+
 
 def get_models(model_dir):
     p = Path(model_dir)
