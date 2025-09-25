@@ -245,7 +245,7 @@ A two‐stage [MEME](https://meme-suite.org/meme/doc/meme.html) + [FIMO](https:/
 To run the script, use the following command:
 
 ```bash
-python 06-predict_motif.py --split_config_file [split_config_path] --morif_config_file [motif_config_path]
+python 06-predict_motif.py --split_config_file [split_config_path] --motif_config_file [motif_config_path]
 ```
 
 #### Arguments
