@@ -1,10 +1,10 @@
-output_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/TFBS/TFBS/MLCB_outputs"
+output_dir: "../outputs"
 
 model:
   model_name: "HyenaDNA"
   model_version: "hyenadna-tiny-1k-seqlen"
   use_padding: true
-  max_length: 264
+  max_length: 265
   finetune_type: "standard" # options: LoRA, standard
   seeds: [565764, 535646, 224359, 989746, 654678]
 
@@ -29,7 +29,7 @@ training:
 
 wandb:
   enabled: True
-  token: 'dc3d431c0afb735d9ac046c72f076bf1f7656472'
-  entity_name: 'haghani-vt'
+  token: ''
+  entity_name: ''
   timezone: 'US/Eastern'
   timezone_format: '%Y-%m-%d_%H-%M-%S'

@@ -1,10 +1,12 @@
-input_dir: ""
+input_dir: "../inputs/samples/Sun2022-SiABFs_dinuc_shuffle_neg_stride_200.csv" # At-Si
 
 model:
   model_name: "AgroNT"
   use_padding: true
-  max_length: 264
-  saved_model_dir: ""
+  max_length: 265
+  finetune_type: "standard" # options: LoRA, standard
+  saved_model_dir: "../outputs/AtABF2_cross-dataset-dinuc_shuffle/test-Sun2022/AgroNT/standard/relaxed/models"
 
 device: "cuda"
 eval_batch_size: 64
+num_saliency_samples: 0

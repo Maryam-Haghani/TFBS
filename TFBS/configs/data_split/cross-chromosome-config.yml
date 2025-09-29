@@ -2,7 +2,7 @@ dataset_path: "../inputs/samples/Sun2022-AtABFs_dinuc_shuffle_neg_stride_200.csv
 
 #############
 name: "AtABFs_cross_chromosome-dinuc_shuffle"
-split_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/TFBS/TFBS/data_splits/"
+split_dir: "../data_splits/"
 test_split_type: "cross"  # Options: 'random' or 'cross'
 val_split_type: "n-fold" # Options: 'cross', 'n-fold' - can be 'cross' when test_split_type is 'cross', as well
 id_column: "chromosomeId"

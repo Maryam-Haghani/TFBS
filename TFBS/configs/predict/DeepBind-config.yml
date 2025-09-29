@@ -1,10 +1,10 @@
-input_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/TFBS/TFBS/inputs/samples/Sun2022-SiABFs_shuffle_neg_stride_200.csv"
-
+input_dir: "../inputs/samples/Sun2022-SiABFs_dinuc_shuffle_neg_stride_200.csv" # At-Si
 model:
   model_name: "DeepBind"
   kernel_length: 24
-  max_length: 264
-  saved_model_dir: "../outputs/ABFs_cross-species/test-Si/DeepBind/relaxed/models"
+  max_length: 265
+  saved_model_dir: "../outputs/AtABF2_cross-dataset-dinuc_shuffle/test-Sun2022/DeepBind/relaxed/models" #cross-dataset
 
 device: "cuda"
 eval_batch_size: 64
+num_saliency_samples: 0

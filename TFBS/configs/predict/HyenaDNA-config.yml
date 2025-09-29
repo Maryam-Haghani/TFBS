@@ -1,0 +1,13 @@
+input_dir: "../inputs/samples/Sun2022-SiABFs_dinuc_shuffle_neg_stride_200.csv" # At-Si
+
+model:
+  model_name: "HyenaDNA"
+  model_version: "hyenadna-tiny-1k-seqlen"
+  use_padding: true
+  max_length: 265
+  saved_model_dir: "../outputs/AtABF2_cross-dataset-dinuc_shuffle/test-Sun2022/HyenaDNA/hyenadna-tiny-1k-seqlen/standard/relaxed/models" # cross dataset
+
+device: "cuda"
+eval_batch_size: 32
+saliency_method: 'smoothgrad' # options:  'vanilla', 'smoothgrad', 'integrated', 'deeplift'
+num_saliency_samples: 0

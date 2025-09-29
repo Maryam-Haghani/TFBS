@@ -1,4 +1,4 @@
-output_dir: "/projects/intro2gds/Maryam_HyenaDNA_202503/TFBS/TFBS/MLCB_outputs"
+output_dir: "../outputs"
 
 model:
   model_name: "DeepBind"
@@ -23,7 +23,7 @@ training:
 
 wandb:
   enabled: True
-  token: 'dc3d431c0afb735d9ac046c72f076bf1f7656472'
-  entity_name: 'haghani-vt'
+  token: ''
+  entity_name: ''
   timezone: 'US/Eastern'
   timezone_format: '%Y-%m-%d_%H-%M-%S'
