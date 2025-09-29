@@ -161,80 +161,22 @@ This script generates predictions from saved pre-trained models for a dataframe 
 To run the script, use the following command:
 
 ```bash
-python 04-predict.py --config_file [config_path] --mode= [mode]
+python 04-predict.py --config_file [config_path]
 ```
 
 #### Arguments
 - `--config_file`: The path to the configuration YAML file.
---mode: Specifies the data mode. Use "df" when the input data is in a dataframe format with `sequence` and `label` columns. Use "genome" when the input is a sequence, and the script predicts whether any fragment of the sequence, with a length defined by `config.window_size` and a stride defined by `config.stride`, is a binding site.
 
 ### Example
-#### mode = "df"
 ```bash
-python 04-predict.py --config_file ../configs/predict/HeynaDNA-config.yml --mode df
+python 04-predict.py --config_file ../configs/predict/HeynaDNA-config.yml
 ```
-##### Output
+#### Output
 A directory named `<config.input_dir without extension>` will be created inside the `predictions` folder, located within the parent directory of the saved model directory (`config.saved_model_dir`).
 Inside this directory, a CSV file containing predictions for each sequence will be saved, named after each model, corresponding to the models saved in the model directory.
 Additionally, a `prediction_result.csv` file will be generated, summarizing performance metrics for all models.
 
-Also, if `num_interpret_samples` is present in config file and > 0 for **HyenaDNA**, script will create a directory named after the chosen interpret method (`config.interpret_method`) inside `interpret`. 
-Inside you’ll find “attribution” files and corresponding visualizations for `num_interpret_samples` truly predicted-test data and wrongly predicted-test data for each model.
-
-Each plot answers the question: “Which parts of this input actually tipped the model toward its final prediction?”
-This way, we get a glimpse of which inputs the network was most sensitive to, rather than treating it as a black box.
-
-Here we have three interpret options:
-- `vanilla`: The classic gradient‐based saliency map. It takes the gradient of the output score for the predicted class with respect to each input feature (e.g. each token embedding). The magnitude of that gradient tells us how much a tiny change in that feature would change the score.
-Can be very noisy, and may suffer from “gradient saturation” (i.e. zero gradients in flat regions).
-- `smooth`(default): **SmoothGrad**; A noise‑averaged version of vanilla gradiant that yields clearer, less noisy attributions. It adds small random noise to the input multiple times and computes a saliency map for each noisy sample, and averages all those maps together.
-SmoothGrad reduces random spikes and highlights the features that consistently matter.
-- `integrated`: **IntegratedGradients (IG)**; A path-integral method that measures how the model’s output evolves when transitioning from a chosen “neutral” baseline to the real input.
-Starting from a simple baseline point (e.g., an all‑zero input), it generates a series of interpolated inputs between that baseline and the target data, computes the gradient at each interpolation step, and then aggregates (integrates) those gradients along the path.
-Because it sums gradient contributions over the entire trajectory, the resulting attributions often capture the model’s reasoning more reliably than a single‐step gradient—and it typically requires dozens to hundreds of forward‑backward passes (e.g. 50–300) to approximate the integral.
-- `deeplift`: **DeepLift**; Back‑propagates the change in output—between the real input and a chosen baseline—through the network using layer‑specific rules for each nonlinearity (“rescale” or “reveal‑cancel”). It only requires one forward pass plus a single, modified backward pass to compute all attributions.
-
-[//]: # (- `shap`: **GradientShap**,)
-
-[//]: # (- **DeepLiftShap**: approximate Shapley by averaging DeepLift over multiple baselines.)
-
-#### mode = "genome"
-```bash
-python 04-predict.py --config_file ../configs/genome_predict/HeynaDNA-config.yml --mode genome
-```
-##### Output
-A directory named `<config.input_dir without extension>` will be created inside the `predictions` folder within the parent directory of saved model directory (`config.saved_model_dir`).
-In this directory, a plot will be saved for each model, with the filename following the template: `peak-[model_name]-window_size_[config.window_size]-stride_[config.stride].png`.
-Additionally, a `prediction_result.csv` file will be generated, summarizing prediction scores for each model for each sequence part.
-
-## 5. Embedding Generation and Visualization
-This script extracts embeddings from a pre-trained or saved model for a data split, and visualizes them using PCA, T-SNE, or UMAP.
-The script supports the use of pre-trained models or saved models, based on the configuration provided (`use_pretrained_model`).
-
-Each model has its own config in `/configs/embedding`.
-
-### Usage
-
-To run the script, use the following command:
-
-```bash
-python 05-get_embedding.py --split_config_file [split_config_path] --embed_config_file [embed_config_path]
-```
-
-#### Arguments
-- `--split_config_file`: The path to the data split configuration YAML file.
-- `--embed_config_file`: The path to the embedding configuration YAML file.
-
-#### Example
-```bash
-python 05-get_embedding.py --embed_config_file ../configs/embedding/HeynaDNA-config.yml --split_config_file ../configs/data_split/cross-species-config.yml
-```
-
-### Output
-Embeddings are saved in `.pt` files, and visualizations are generated in `plots` subdirectory in `embeddings` directory.
-
-
-## 6. Motif-Based Prediction (Traditional Approach)
+## 5. Motif-Based Prediction (Traditional Approach)
 This script generates predictions from traditional motif-based approach.
 
 A two‐stage [MEME](https://meme-suite.org/meme/doc/meme.html) + [FIMO](https://meme-suite.org/meme/doc/fimo.html) pipeline that:
@@ -245,7 +187,7 @@ A two‐stage [MEME](https://meme-suite.org/meme/doc/meme.html) + [FIMO](https:/
 To run the script, use the following command:
 
 ```bash
-python 06-predict_motif.py --split_config_file [split_config_path] --motif_config_file [motif_config_path]
+python 05-predict_motif.py --split_config_file [split_config_path] --motif_config_file [motif_config_path]
 ```
 
 #### Arguments
@@ -254,7 +196,7 @@ python 06-predict_motif.py --split_config_file [split_config_path] --motif_confi
 
 #### Example
 ```bash
-python 06-predict_motif.py --motif_config_file ../configs/motif-based.yml --split_config_file ../configs/data_split/cross-species-config.yml
+python 05-predict_motif.py --motif_config_file ../configs/motif-based.yml --split_config_file ../configs/data_split/cross-species-config.yml
 ```
 
 ### Output

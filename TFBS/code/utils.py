@@ -9,16 +9,6 @@ from datetime import datetime
 import wandb
 
 def serialize_array(array):
-    """
-    Serialize an array into a string to include in the saved model name.
-    The array is serialized as a comma-separated list of its elements.
-
-    Args:
-        array (list): The array (list) to serialize
-
-    Returns:
-        str: The serialized array as a string with its name.
-    """
     # convert the array into a comma-separated string
     array_str = "_".join([str(item) for item in array])
     return array_str
@@ -27,12 +17,6 @@ def serialize_dict(model_params):
     """
     Serialize model parameters into a string to include in the saved model name.
     The string will be in a format like: "num_epochs_60_batch_size_32_lr_1e-4"
-
-    Args:
-        model_params (dict): Dictionary of model parameters (e.g., num_epochs, batch_size, etc.)
-
-    Returns:
-        str: Serialized string of model parameters
     """
     if isinstance(model_params, types.SimpleNamespace):
         model_params_dict = vars(model_params)

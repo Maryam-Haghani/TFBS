@@ -2,8 +2,7 @@ import torch
 import ast
 
 class FoundationDataset(torch.utils.data.Dataset):
-    def __init__(self, mode, model_name, tokenizer, data, max_length, window_size=None, stride=None, use_padding=True, add_eos=False):
-        self.mode = mode
+    def __init__(self, model_name, tokenizer, data, max_length, window_size=None, stride=None, use_padding=True, add_eos=False):
         self.model_name = model_name
         self.tokenizer = tokenizer
         self.data = data
@@ -14,12 +13,7 @@ class FoundationDataset(torch.utils.data.Dataset):
         self.add_eos = add_eos
 
     def __len__(self):
-        if self.mode == "df":
-            return len(self.data)
-        elif self.mode == "genome":
-            # number of sliding windows (considering stride)
-            num_windows = (len(self.data) - self.window_size) // self.stride + 1
-            return num_windows
+        return len(self.data)
 
     def pad_sequence_to_max_length(self, seq):
         # Pad or truncate sequence to max_length
@@ -31,16 +25,10 @@ class FoundationDataset(torch.utils.data.Dataset):
         return padded_seq
 
     def __getitem__(self, idx):
-        if self.mode == "df":
-            uid = self.data.iloc[idx]['peak_uid']
-            sequence = self.data.iloc[idx]['sequence']
-            label = self.data.iloc[idx]['label']
-            peak_start, peak_end = ast.literal_eval(self.data.iloc[idx]['peak_start_end_index'])
-        elif self.mode == "genome":
-            # calculate the start and end index for the current window based on the stride
-            start_idx = idx * self.stride
-            end_idx = start_idx + self.window_size
-            sequence = self.data[start_idx:end_idx]
+        uid = self.data.iloc[idx]['peak_uid']
+        sequence = self.data.iloc[idx]['sequence']
+        label = self.data.iloc[idx]['label']
+        peak_start, peak_end = ast.literal_eval(self.data.iloc[idx]['peak_start_end_index'])
 
         # Tokenize the sequence
         if self.model_name == "BNABERT-2":
@@ -61,8 +49,5 @@ class FoundationDataset(torch.utils.data.Dataset):
 
         tokenized_seq = torch.LongTensor(tokenized_seq)
 
-        if self.mode == "df":
-            label = torch.LongTensor([label])
-            return sequence, tokenized_seq, uid, peak_start, peak_end, label
-        elif self.mode == "genome":
-            return sequence, tokenized_seq, start_idx, end_idx
+        label = torch.LongTensor([label])
+        return sequence, tokenized_seq, uid, peak_start, peak_end, label
