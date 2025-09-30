@@ -6,6 +6,9 @@
 
 This project fine-tunes large pretrained DNA foundation models to predict transcription factor binding sites (TFBSs) in plant genomes.
 We benchmark three foundation models:**DNABERT-2**, **AgroNT**, and **HyenaDNA**, against specialized methods like **DeepBind** and **BERT-TFBS** using DAP-seq data from *Arabidopsis thaliana* and *Sisymbrium irio*.
+
+In addition, we include a motif-based approach employing MEME for motif discovery and FIMO for scanning potential TFBSs.
+
 The project uses a unified pipeline, which covers three evaluation protocols:
 
 1. **Cross-chromosome**: Leave-one-chromosome-out evaluation on *A. thaliana* (Sun2022). 
@@ -52,11 +55,16 @@ This project provides two Conda environment files:
 ---
 
 ## 1. Data Preparation
-Data utilized in this project are sourced from the [Ronan2016](https://pubmed.ncbi.nlm.nih.gov/27203113/) and [Sun2022](https://pubmed.ncbi.nlm.nih.gov/35501452/) studies. Download the data and place it in the `./inputs` directory inside the `./TFBS` project folder.
+The DAP-seq peak used in this project come from [Ronan et al., 2016](https://pubmed.ncbi.nlm.nih.gov/27203113/) and [Sun et al., 2022](https://pubmed.ncbi.nlm.nih.gov/35501452/).  
+Genome sequences and DAP-seq peak files are available on [Zenodo](https://zenodo.org/records/17229680) (DOI: 10.5281/zenodo.17229680).  
+
+After downloading, place the files in the project directory as follows:  
+- `./TFBS/data/fastas/` → genome FASTA files  
+- `./TFBS/data/peak_files/` → DAP-seq peak files  
 
 We used the `01-generate_samples.py` script to process raw data and generate positive and negative samples for transcription factor (TF) binding sites.
 It takes as input a FASTA file of chromosome sequences for species genome and a CSV file containing peak regions.
-Negative sample will be generated based on `neg_type` argument with default value of "shuffle".
+Negative sample will be generated based on `neg_type` argument with default value of "dinuc_shuffle".
 
 ### Usage
 To run the script, use the following command:
@@ -78,16 +86,14 @@ python 01-generate_samples.py --fasta_file path/to/your.fasta --peak_file path/t
 #### Example
 ##### For *A. thaliana* (ABF1-4) dataset:
 ```bash
-python 01-generate_samples.py --fasta_file ../inputs/fastas/Arabidopsis_thaliana.TAIR10.dna_sm.toplevel.fa --peak_file ../inputs/peak_files/Sun2022-AtABFs_DAP-Seq_peaks.csv --species "At" --dataset Sun2022 --neg_type dinuc_shuffle --output_file ../inputs/samples/Sun2022-AtABFs_dinuc_shuffle_neg_stride_200.csv
-#python 01-generate_samples.py --fasta_file ../inputs/fastas/Arabidopsis_thaliana.TAIR10.dna_sm.toplevel.fa --peak_file ../inputs/peak_files/Sun2022-AtABF2_DAP-Seq_peaks.csv --species "At" --dataset Sun2022 --neg_type dinuc_shuffle --fixed_length 201 --output_file ../inputs/samples/Sun2022-AtABF2_dinuc_shuffle_neg_fixed_201.csv
-#python 01-generate_samples.py --fasta_file ../inputs/fastas/Arabidopsis_thaliana.TAIR10.dna_sm.toplevel.fa --peak_file ../inputs/peak_files/Malley2016-AtABF2_DAP-Seq_peaks.csv --species "At" --dataset Malley2016 --neg_type dinuc_shuffle --fixed_length 201 --output_file ../inputs/samples/Malley2016-AtABF2_dinuc_shuffle_neg_fixed_201.csv
+python 01-generate_samples.py --fasta_file ../data/fastas/Arabidopsis_thaliana.TAIR10.dna_sm.toplevel.fa --peak_file ../data/peak_files/Sun2022-AtABFs_DAP-Seq_peaks.csv --species "At" --dataset Sun2022 --neg_type dinuc_shuffle --output_file ../data/samples/Sun2022-AtABFs_dinuc_shuffle_neg_stride_200.csv
 ```
-To run this command, you should download the FASTA file for the *A. thaliana* genome and place it in the `./TFBS/inputs/fastas` directory.
+To run this command, you should download the FASTA file for the *A. thaliana* genome and place it in the `./TFBS/data/fastas` directory.
 ##### For *S. irio* (ABF1-4) dataset:
 ```bash
-python 01-generate_samples.py --fasta_file ../inputs/fastas/Si_sequence --peak_file ../inputs/peak_files/Sun2022-SiABFs_DAP-Seq_peaks.csv --species "Si" --dataset Sun2022 --neg_type dinuc_shuffle --output_file ../inputs/samples/Sun2022-SiABFs_dinuc_shuffle_neg_stride_200.csv  
+python 01-generate_samples.py --fasta_file ../data/fastas/Si_sequence --peak_file ../data/peak_files/Sun2022-SiABFs_DAP-Seq_peaks.csv --species "Si" --dataset Sun2022 --neg_type dinuc_shuffle --output_file ../data/samples/Sun2022-SiABFs_dinuc_shuffle_neg_stride_200.csv  
 ```
-To run this command, you should download the FASTA file for the *S. irio* genome and place it in the `./TFBS/inputs/fastas` directory.
+To run this command, you should download the FASTA file for the *S. irio* genome and place it in the `./TFBS/data/fastas` directory.
 ### Output
 This will generate positive and negative samples based on the given negative type generation, for the given species using the provided FASTA file and peak data, saving the results to `--output_file`.
 
@@ -131,6 +137,13 @@ A two‐stage pipeline that:
 2. **Phase 2:** Retrains the model on the full training set on the best hyperparameters for multiple random seeds, predicts for the held‑out test set, and logs key metrics (MCC, F1, accuracy, AUROC, AUPRC) for each seed.
 
 It integrates with [Weights & Biases (wandb)](https://wandb.ai) for experiment tracking and visualization.
+To enable logging, you should specify the `entity_name` and `token` values under the `wandb` parameter in the training configuration file.
+
+```yaml
+wandb:
+  entity_name: "your_wandb_username_or_team"
+  token: "your_wandb_api_token"
+```
 
 ### Usage
 To run the script, use the following command:

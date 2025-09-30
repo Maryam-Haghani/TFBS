@@ -12,7 +12,7 @@ def parse_arguments():
     parser.add_argument("--peak_file", type=str, required=True, help="Path to the CSV file containing peaks.")
     parser.add_argument("--output_file", type=str, required=True, help="Path to save the output CSV file.")
     parser.add_argument("--neg_type", type=str, choices=["dinuc_shuffle","shuffle", "random"], required=False,
-                        default="shuffle", help="Type of negative sample generation.")
+                        default="dinuc_shuffle", help="Type of negative sample generation.")
     parser.add_argument("--species", type=str, choices=["Si", "At"], required=True, help="Species type: Si or At")
     parser.add_argument("--dataset", type=str, choices=["Sun2022", "Malley2016"], required=True, help="Origin of Dataset")
     parser.add_argument("--sliding_window", type=int, required=False, default=200,

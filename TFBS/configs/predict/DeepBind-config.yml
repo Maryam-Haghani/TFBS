@@ -1,4 +1,4 @@
-input_dir: "../inputs/samples/Sun2022-SiABFs_dinuc_shuffle_neg_stride_200.csv" # At-Si
+input_dir: "../data/samples/Sun2022-SiABFs_dinuc_shuffle_neg_stride_200.csv" # At-Si
 model:
   model_name: "DeepBind"
   kernel_length: 24

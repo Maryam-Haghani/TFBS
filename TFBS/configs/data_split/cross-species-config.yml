@@ -1,5 +1,5 @@
-dataset_path: ["../inputs/samples/Sun2022-AtABFs_dinuc_shuffle_neg_stride_200.csv",
-               "../inputs/samples/Sun2022-SiABFs_dinuc_shuffle_neg_stride_200.csv"]
+dataset_path: ["../data/samples/Sun2022-AtABFs_dinuc_shuffle_neg_stride_200.csv",
+               "../data/samples/Sun2022-SiABFs_dinuc_shuffle_neg_stride_200.csv"]
 
 ##########
 name: "ABFs_cross-species-dinuc_shuffle"
