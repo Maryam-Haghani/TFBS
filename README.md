@@ -239,8 +239,7 @@ If you use this code or data, please cite:
   author  = {Haghani, Maryam and Dhulipalla, Krishna Vamsi and Li, Song},
   journal = {Proceedings of the 20th Machine Learning in Computational Biology, PMLR},
   year    = {2025},
-  url     = {https://proceedings.mlr.press/v311/haghani25a.html
-}
+  url     = {https://proceedings.mlr.press/v311/haghani25a.html}
 }
 ```
 ---
