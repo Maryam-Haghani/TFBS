@@ -237,9 +237,10 @@ If you use this code or data, please cite:
 @article{Haghani2025TFBS,
   title   = {Harnessing DNA Foundation Models for Cross-Species Transcription Factor Binding Site Prediction in Plant Genomes},
   author  = {Haghani, Maryam and Dhulipalla, Krishna Vamsi and Li, Song},
-  journal = {bioRxiv},
+  journal = {Proceedings of the 20th Machine Learning in Computational Biology, PMLR},
   year    = {2025},
-  doi     = {10.1101/XXXXXX}
+  url     = {https://proceedings.mlr.press/v311/haghani25a.html
+}
 }
 ```
 ---
